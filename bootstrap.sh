@@ -312,10 +312,11 @@ setup_tools() {
     echo "  3) ldb_toolchain (C/C++ build toolchain)"
     echo "  4) anaconda/conda (binary only)"
     echo "  5) rclone (binary only)"
+    echo "  6) GitHub CLI (gh, binary only)"
     echo "  a) All of the above"
     echo "  n) Skip all"
     echo
-    read -rp "Which tools to install? [a/1/2/3/4/5/n] " tools_choice
+    read -rp "Which tools to install? [a/1/2/3/4/5/6/n] " tools_choice
     tools_choice="${tools_choice:-a}"
 
     case "$tools_choice" in
@@ -325,6 +326,7 @@ setup_tools() {
             source "$DOTFILES_DIR/install/ldb_toolchain.sh" && install_ldb_toolchain || warn "ldb_toolchain installation had issues"
             source "$DOTFILES_DIR/install/anaconda.sh"      && install_anaconda      || warn "anaconda installation had issues"
             source "$DOTFILES_DIR/install/rclone.sh"        && install_rclone        || warn "rclone installation had issues"
+            source "$DOTFILES_DIR/install/gh.sh"            && install_gh            || warn "gh installation had issues"
             ;;
         n|N)
             info "Skipping tool installation"
@@ -345,6 +347,9 @@ setup_tools() {
             fi
             if [[ "$tools_choice" == *5* ]]; then
                 source "$DOTFILES_DIR/install/rclone.sh" && install_rclone || warn "rclone installation had issues"
+            fi
+            if [[ "$tools_choice" == *6* ]]; then
+                source "$DOTFILES_DIR/install/gh.sh" && install_gh || warn "gh installation had issues"
             fi
             ;;
     esac
@@ -510,6 +515,7 @@ print_summary() {
     echo "  bash $DOTFILES_DIR/install/ldb_toolchain.sh"
     echo "  bash $DOTFILES_DIR/install/anaconda.sh"
     echo "  bash $DOTFILES_DIR/install/rclone.sh"
+    echo "  bash $DOTFILES_DIR/install/gh.sh"
     echo "  bash $DOTFILES_DIR/install/doris-thirdparty.sh"
     echo "  bash $DOTFILES_DIR/install/doris-workspace.sh"
     echo

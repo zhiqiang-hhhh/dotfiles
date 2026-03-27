@@ -14,6 +14,9 @@
 # rclone
 [[ -d "$HOME/tools/rclone/bin" ]] && export PATH="$HOME/tools/rclone/bin:$PATH"
 
+# GitHub CLI
+[[ -d "$HOME/tools/github-cli/bin" ]] && export PATH="$HOME/tools/github-cli/bin:$PATH"
+
 # Maven
 [[ -d "$HOME/tools/maven/bin" ]] && export PATH="$HOME/tools/maven/bin:$PATH"
 
