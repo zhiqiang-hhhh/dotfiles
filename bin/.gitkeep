@@ -1,0 +1,6 @@
+# This directory is for your custom scripts.
+# It will be added to PATH by bashrc.d/00-path.sh
+#
+# Examples:
+#   ~/bin/deploy.sh
+#   ~/bin/build-project.sh

@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cat <<'EOF'
+Doris shortcuts (managed by dotfiles)
+
+Navigation (shell functions)
+  cdoris        cd ~/workspace/doris
+  cfe           cd ~/workspace/doris/fe
+  cbe           cd ~/workspace/doris/be
+  tobe          same as cbe
+
+Runtime commands
+  doris-help    show this help
+  doris-ports   print FE/BE ports from workspace conf files
+  doris_ports   wrapper of doris-ports (shell function)
+  restart-fe    restart FE (default uses --daemon)
+  restart-be    restart BE (default uses --daemon)
+  restart_fe    wrapper of restart-fe (shell function)
+  restart_be    wrapper of restart-be (shell function)
+
+SQL helpers
+  todoris [mysql args...]
+      connect to FE query port with mysql -h 127.0.0.1 -P <query_port> -uroot
+
+  addbe [host] [heartbeat_port]
+      run: ALTER SYSTEM ADD BACKEND "host:heartbeat_port";
+      defaults: host=127.0.0.1, heartbeat_port from be.conf
+      alias function: add_be
+
+Tip
+  If commands are missing in current shell, run: source ~/.bashrc
+EOF

@@ -1,0 +1,48 @@
+[user]
+    name = __GIT_NAME__
+    email = __GIT_EMAIL__
+
+[alias]
+    co = checkout
+    br = branch
+    ci = commit
+    st = status
+    df = diff
+    lg = log --oneline --graph --all --decorate -20
+    last = log -1 HEAD
+    unstage = reset HEAD --
+    amend = commit --amend --no-edit
+
+[color]
+    ui = auto
+    diff = auto
+    status = auto
+    branch = auto
+
+[core]
+    editor = vim
+    autocrlf = input
+    excludesfile = ~/.gitignore_global
+    pager = less -FRX
+
+[pull]
+    rebase = false
+
+[push]
+    default = current
+
+[init]
+    defaultBranch = main
+
+[diff]
+    tool = vimdiff
+
+[merge]
+    tool = vimdiff
+    conflictstyle = diff3
+
+[fetch]
+    prune = true
+
+[format]
+    pretty = format:%C(yellow)%h%Creset %s %C(red)(%an, %cr)%Creset

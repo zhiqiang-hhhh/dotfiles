@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_doris-common.sh"
+
+fe_conf="$(doris_fe_conf_path)"
+be_conf="$(doris_be_conf_path)"
+
+fe_http_port="$(doris_conf_get "$fe_conf" "http_port" "8030")"
+fe_rpc_port="$(doris_conf_get "$fe_conf" "rpc_port" "9020")"
+fe_query_port="$(doris_conf_get "$fe_conf" "query_port" "9030")"
+fe_edit_log_port="$(doris_conf_get "$fe_conf" "edit_log_port" "9010")"
+
+be_port="$(doris_conf_get "$be_conf" "be_port" "9060")"
+be_webserver_port="$(doris_conf_get "$be_conf" "webserver_port" "8040")"
+be_heartbeat_port="$(doris_conf_get "$be_conf" "heartbeat_service_port" "9050")"
+be_brpc_port="$(doris_conf_get "$be_conf" "brpc_port" "8060")"
+
+printf 'Doris FE ports: http=%s rpc=%s query=%s edit_log=%s\n' \
+    "$fe_http_port" "$fe_rpc_port" "$fe_query_port" "$fe_edit_log_port"
+printf 'Doris BE ports: be=%s web=%s heartbeat=%s brpc=%s\n' \
+    "$be_port" "$be_webserver_port" "$be_heartbeat_port" "$be_brpc_port"

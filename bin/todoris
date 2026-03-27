@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_doris-common.sh"
+
+fe_conf="$(doris_fe_conf_path)"
+query_port="$(doris_conf_get "$fe_conf" "query_port" "9030")"
+
+if command -v mysql &>/dev/null; then
+    mysql -h 127.0.0.1 -P "$query_port" -uroot "$@"
+else
+    echo "todoris: mysql client not found"
+    echo "run: mysql -h 127.0.0.1 -P $query_port -uroot"
+    exit 1
+fi
