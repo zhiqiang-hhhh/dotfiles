@@ -3,6 +3,11 @@ set -euo pipefail
 
 kitten_bin="${KITTEN_BIN:-$(command -v kitten || true)}"
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/kitty-remote-fork"
+rssh_bin="${RSSH_BIN:-$(command -v rssh || true)}"
+
+if [[ -z "$rssh_bin" || ! -x "$rssh_bin" ]]; then
+  rssh_bin="${0:A}"
+fi
 
 publish_state() {
   local cmd="$1"
@@ -26,7 +31,7 @@ clear_state() {
   fi
 }
 
-quoted_cmd="ssh ${(q)@}"
+quoted_cmd="${(q)rssh_bin} ${(q)@}"
 publish_state "$quoted_cmd"
 trap clear_state EXIT
 
