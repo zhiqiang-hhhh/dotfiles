@@ -2,7 +2,16 @@
 
 Personal development machine bootstrap and shell configuration.
 
+This repo now also includes kitty terminal config under `kitty/`, so terminal keybindings and related helper scripts are managed in one place.
+
 Inspired by https://github.com/ryanb/dotfiles.
+
+## Kitty config (new)
+
+- Tracked kitty config lives at `kitty/kitty.conf`
+- Expected live path is `~/.config/kitty/kitty.conf` (symlink)
+- Some mappings call `bin/kitty-remote-fork` in this repo for pane split/fork behavior
+- Set or repair the symlink with: `bash ~/code/dotfiles/install/kitty.sh`
 
 ## Quick Start (run via curl)
 
@@ -44,6 +53,7 @@ bash ~/code/dotfiles/install/ldb_toolchain.sh
 bash ~/code/dotfiles/install/anaconda.sh
 bash ~/code/dotfiles/install/rclone.sh
 bash ~/code/dotfiles/install/gh.sh
+bash ~/code/dotfiles/install/kitty.sh
 bash ~/code/dotfiles/install/doris-thirdparty.sh
 bash ~/code/dotfiles/install/doris-workspace.sh
 ```

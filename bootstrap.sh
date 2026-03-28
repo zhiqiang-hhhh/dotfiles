@@ -516,6 +516,7 @@ print_summary() {
     echo "  bash $DOTFILES_DIR/install/anaconda.sh"
     echo "  bash $DOTFILES_DIR/install/rclone.sh"
     echo "  bash $DOTFILES_DIR/install/gh.sh"
+    echo "  bash $DOTFILES_DIR/install/kitty.sh"
     echo "  bash $DOTFILES_DIR/install/doris-thirdparty.sh"
     echo "  bash $DOTFILES_DIR/install/doris-workspace.sh"
     echo
