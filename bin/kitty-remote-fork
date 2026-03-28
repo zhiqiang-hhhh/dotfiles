@@ -1,0 +1,60 @@
+#!/bin/zsh
+set -euo pipefail
+
+kitten_bin="${KITTEN_BIN:-$(command -v kitten || true)}"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/kitty-remote-fork"
+mode="${1:-window}"
+
+if [[ -z "$kitten_bin" ]]; then
+  echo "kitty-remote-fork: cannot find 'kitten' in PATH; set KITTEN_BIN if needed" >&2
+  exit 1
+fi
+
+case "$mode" in
+  window|vsplit|hsplit|tab)
+    ;;
+  *)
+    echo "usage: kitty-remote-fork [window|vsplit|hsplit|tab]" >&2
+    exit 2
+    ;;
+esac
+
+focused_json="$("$kitten_bin" @ ls)"
+focused_window_id="$(printf '%s\n' "$focused_json" | jq -r '
+  first(
+    .[]?.tabs[]?.windows[]?
+    | select(.is_focused == true)
+    | .id
+  )
+')"
+ssh_cmd=""
+
+if [[ -n "$focused_window_id" && -f "${state_dir}/${focused_window_id}" ]]; then
+  ssh_cmd="$(<"${state_dir}/${focused_window_id}")"
+fi
+
+if [[ -z "$ssh_cmd" ]]; then
+  case "$mode" in
+    window)
+      exec "$kitten_bin" @ launch
+      ;;
+    vsplit|hsplit)
+      exec "$kitten_bin" @ launch --location "$mode"
+      ;;
+    tab)
+      exec "$kitten_bin" @ launch --type tab
+      ;;
+  esac
+fi
+
+case "$mode" in
+  window)
+    exec "$kitten_bin" @ launch /bin/zsh -lc "$ssh_cmd"
+    ;;
+  vsplit|hsplit)
+    exec "$kitten_bin" @ launch --location "$mode" /bin/zsh -lc "$ssh_cmd"
+    ;;
+  tab)
+    exec "$kitten_bin" @ launch --type tab /bin/zsh -lc "$ssh_cmd"
+    ;;
+esac

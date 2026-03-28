@@ -1,0 +1,33 @@
+#!/bin/zsh
+set -euo pipefail
+
+kitten_bin="${KITTEN_BIN:-$(command -v kitten || true)}"
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/kitty-remote-fork"
+
+publish_state() {
+  local cmd="$1"
+  [[ -n "${KITTY_WINDOW_ID:-}" ]] || return 0
+  mkdir -p "$state_dir"
+  printf '%s\n' "$cmd" > "${state_dir}/${KITTY_WINDOW_ID}"
+  if [[ -n "$kitten_bin" ]]; then
+    "$kitten_bin" @ set-user-vars --match "id:${KITTY_WINDOW_ID}" \
+      REMOTE_SSH_ACTIVE=1 \
+      REMOTE_SSH_CMD="$cmd" >/dev/null 2>&1 || true
+  fi
+}
+
+clear_state() {
+  [[ -n "${KITTY_WINDOW_ID:-}" ]] || return 0
+  rm -f "${state_dir}/${KITTY_WINDOW_ID}"
+  if [[ -n "$kitten_bin" ]]; then
+    "$kitten_bin" @ set-user-vars --match "id:${KITTY_WINDOW_ID}" \
+      REMOTE_SSH_ACTIVE= \
+      REMOTE_SSH_CMD= >/dev/null 2>&1 || true
+  fi
+}
+
+quoted_cmd="ssh ${(q)@}"
+publish_state "$quoted_cmd"
+trap clear_state EXIT
+
+ssh "$@"
