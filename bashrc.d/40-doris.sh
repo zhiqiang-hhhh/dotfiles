@@ -65,3 +65,7 @@ restart_fe() {
 restart_be() {
     _run_dotfiles_bin restart-be "$@"
 }
+
+doris_rebuild() {
+    _run_dotfiles_bin doris-rebuild "$@"
+}

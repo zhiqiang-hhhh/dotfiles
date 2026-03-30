@@ -1,0 +1,170 @@
+#!/usr/bin/env bash
+#
+# doris-rebuild - Destroy and rebuild a local Doris cluster from scratch
+#
+# Stops FE and BE, wipes all metadata and storage, re-creates the workspace
+# directory layout, then starts FE, waits for it to be ready, starts BE, and
+# registers the BE node.
+#
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_doris-common.sh"
+
+WORKSPACE_DORIS_DIR="$HOME/workspace/doris"
+FE_HOME="$(doris_component_home fe)"
+BE_HOME="$(doris_component_home be)"
+
+FE_META_DIR="$FE_HOME/doris-meta"
+BE_STORAGE_DIR="$BE_HOME/storage"
+
+# ---------------------------------------------------------------------------
+
+info()    { printf "\033[34m[INFO]\033[0m %s\n" "$1"; }
+warn()    { printf "\033[33m[WARN]\033[0m %s\n" "$1"; }
+success() { printf "\033[32m[ OK ]\033[0m %s\n" "$1"; }
+
+# ---------------------------------------------------------------------------
+
+stop_component() {
+    local component="$1"
+    local home_dir stop_script pid_file
+    home_dir="$(doris_component_home "$component")"
+    stop_script="$home_dir/bin/stop_${component}.sh"
+    pid_file="$home_dir/bin/${component}.pid"
+
+    if [[ ! -f "$pid_file" ]]; then
+        info "${component^^} not running (no PID file), skip stop"
+        return 0
+    fi
+
+    if [[ -x "$stop_script" ]]; then
+        info "Stopping ${component^^} ..."
+        "$stop_script" 2>/dev/null || true
+        success "${component^^} stopped"
+    else
+        warn "Stop script not found: $stop_script (skipping)"
+    fi
+}
+
+start_component() {
+    local component="$1"
+    shift
+    local home_dir start_script
+    home_dir="$(doris_component_home "$component")"
+    start_script="$home_dir/bin/start_${component}.sh"
+
+    if [[ ! -x "$start_script" ]]; then
+        echo "missing executable: $start_script" >&2
+        return 1
+    fi
+
+    info "Starting ${component^^} in daemon mode ..."
+    "$start_script" --daemon "$@"
+    success "${component^^} started"
+}
+
+wipe_data() {
+    if [[ -d "$FE_META_DIR" ]]; then
+        info "Wiping FE metadata: $FE_META_DIR"
+        rm -rf "$FE_META_DIR"
+        success "FE metadata removed"
+    fi
+
+    if [[ -d "$BE_STORAGE_DIR" ]]; then
+        info "Wiping BE storage: $BE_STORAGE_DIR"
+        rm -rf "$BE_STORAGE_DIR"
+        success "BE storage removed"
+    fi
+
+    # Also clean BE log and FE log to start fresh (optional, non-fatal)
+    local fe_log_dir="$FE_HOME/log"
+    local be_log_dir="$BE_HOME/log"
+    if [[ -d "$fe_log_dir" ]]; then
+        info "Wiping FE logs: $fe_log_dir"
+        rm -rf "$fe_log_dir"
+    fi
+    if [[ -d "$be_log_dir" ]]; then
+        info "Wiping BE logs: $be_log_dir"
+        rm -rf "$be_log_dir"
+    fi
+}
+
+reinit_dirs() {
+    info "Re-creating data directories"
+    mkdir -p "$FE_META_DIR"
+    mkdir -p "$BE_STORAGE_DIR" "$BE_STORAGE_DIR/tmp"
+    success "Data directories ready"
+}
+
+wait_fe_ready() {
+    local max_wait="${DORIS_REBUILD_FE_TIMEOUT:-30}"
+    local elapsed=0
+    info "Waiting for FE to be ready (timeout ${max_wait}s) ..."
+
+    while (( elapsed < max_wait )); do
+        if "$SCRIPT_DIR/todoris" -e "SELECT 1" &>/dev/null; then
+            success "FE is ready (took ${elapsed}s)"
+            return 0
+        fi
+        sleep 3
+        (( elapsed += 3 ))
+    done
+
+    warn "FE did not become ready within ${max_wait}s"
+    return 1
+}
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+# Safety confirmation
+if [[ "${1:-}" != "-y" && "${1:-}" != "--yes" ]]; then
+    echo "This will DESTROY all Doris cluster data and rebuild from scratch:"
+    echo "  FE metadata : $FE_META_DIR"
+    echo "  BE storage  : $BE_STORAGE_DIR"
+    echo ""
+    read -r -p "Are you sure? [y/N] " answer
+    case "$answer" in
+        [yY][eE][sS]|[yY]) ;;
+        *)
+            echo "Aborted."
+            exit 0
+            ;;
+    esac
+fi
+
+info "=== Doris cluster rebuild starting ==="
+
+# Step 1: Stop everything
+stop_component be
+stop_component fe
+
+# Step 2: Wipe data
+wipe_data
+
+# Step 3: Re-create data directories
+reinit_dirs
+
+# Step 4: Start FE
+start_component fe
+if ! wait_fe_ready; then
+    echo ""
+    warn "FE is not ready yet. You can wait and manually run:"
+    warn "  addbe            # register BE after FE is up"
+    warn "  restart-be       # start BE"
+    exit 1
+fi
+
+# Step 5: Start BE
+start_component be
+sleep 3
+
+# Step 6: Register BE to cluster
+info "Registering BE node to cluster ..."
+"$SCRIPT_DIR/addbe"
+
+success "=== Doris cluster rebuild complete ==="
+info "Use 'todoris' to connect, 'doris-ports' to check ports."

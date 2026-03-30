@@ -20,6 +20,13 @@ Runtime commands
   restart_fe    wrapper of restart-fe (shell function)
   restart_be    wrapper of restart-be (shell function)
 
+Cluster management
+  doris-rebuild [-y|--yes]
+      destroy and rebuild the local Doris cluster from scratch:
+      stops FE/BE, wipes metadata & storage, restarts, registers BE
+      -y / --yes  skip confirmation prompt
+      alias function: doris_rebuild
+
 SQL helpers
   todoris [mysql args...]
       connect to FE query port with mysql -h 127.0.0.1 -P <query_port> -uroot
