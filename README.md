@@ -28,7 +28,7 @@ This script will guide you through:
 - setting up SSH key and git config
 - cloning this repo to `~/code/dotfiles`
 - configuring `~/.bashrc` to source `bashrc.d/*.sh`
-- optional tool installation (JDK, Maven, ldb_toolchain, anaconda/conda, rclone, GitHub CLI)
+- optional tool installation (JDK, Maven, ldb_toolchain, Go, anaconda/conda, rclone, GitHub CLI)
 - cloning repos from `repos.conf`
 - optional Doris thirdparty setup
 - optional Doris workspace runtime setup (`~/workspace/doris`)
@@ -50,6 +50,7 @@ After bootstrap, you can run installers independently:
 bash ~/code/dotfiles/install/java.sh
 bash ~/code/dotfiles/install/maven.sh
 bash ~/code/dotfiles/install/ldb_toolchain.sh
+bash ~/code/dotfiles/install/go.sh
 bash ~/code/dotfiles/install/anaconda.sh
 bash ~/code/dotfiles/install/rclone.sh
 bash ~/code/dotfiles/install/gh.sh

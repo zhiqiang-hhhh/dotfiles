@@ -20,6 +20,10 @@
 # Maven
 [[ -d "$HOME/tools/maven/bin" ]] && export PATH="$HOME/tools/maven/bin:$PATH"
 
+# Go
+[[ -d "$HOME/tools/go/bin" ]] && export PATH="$HOME/tools/go/bin:$PATH"
+[[ -d "$HOME/go/bin" ]] && export PATH="$HOME/go/bin:$PATH"
+
 # Java - prefer JAVA_HOME if set
 if [[ -n "${JAVA_HOME:-}" && -d "$JAVA_HOME/bin" ]]; then
     export PATH="$JAVA_HOME/bin:$PATH"

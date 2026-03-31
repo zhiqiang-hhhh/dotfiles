@@ -94,8 +94,31 @@ wipe_data() {
 reinit_dirs() {
     info "Re-creating data directories"
     mkdir -p "$FE_META_DIR"
+    mkdir -p "$FE_HOME/log"
     mkdir -p "$BE_STORAGE_DIR" "$BE_STORAGE_DIR/tmp"
+    mkdir -p "$BE_HOME/log"
     success "Data directories ready"
+}
+
+fix_conf() {
+    local key="priority_networks"
+    local value="127.0.0.1/8"
+
+    local fe_conf="$FE_HOME/conf/fe.conf"
+    local be_conf="$BE_HOME/conf/be.conf"
+
+    for conf in "$fe_conf" "$be_conf"; do
+        if [[ ! -f "$conf" ]]; then
+            warn "Config not found: $conf (skipping)"
+            continue
+        fi
+        if grep -qE "^[[:space:]]*${key}[[:space:]]*=" "$conf"; then
+            sed -i -E "s|^[[:space:]]*${key}[[:space:]]*=.*|${key} = ${value}|" "$conf"
+        else
+            printf '\n%s = %s\n' "$key" "$value" >> "$conf"
+        fi
+        success "Set ${key} = ${value} in $conf"
+    done
 }
 
 wait_fe_ready() {
@@ -148,7 +171,10 @@ wipe_data
 # Step 3: Re-create data directories
 reinit_dirs
 
-# Step 4: Start FE
+# Step 4: Fix config (priority_networks -> 127.0.0.1)
+fix_conf
+
+# Step 5: Start FE
 start_component fe
 if ! wait_fe_ready; then
     echo ""
@@ -158,11 +184,11 @@ if ! wait_fe_ready; then
     exit 1
 fi
 
-# Step 5: Start BE
+# Step 6: Start BE
 start_component be
 sleep 3
 
-# Step 6: Register BE to cluster
+# Step 7: Register BE to cluster
 info "Registering BE node to cluster ..."
 "$SCRIPT_DIR/addbe"
 

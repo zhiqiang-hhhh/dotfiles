@@ -32,6 +32,14 @@ if [[ -d "$HOME/tools/maven" ]]; then
     export M2_HOME="$MAVEN_HOME"
 fi
 
+# Go
+if [[ -d "$HOME/tools/go" ]]; then
+    export GOROOT="$HOME/tools/go"
+fi
+if [[ -z "${GOPATH:-}" ]]; then
+    export GOPATH="$HOME/go"
+fi
+
 # ldb_toolchain
 if [[ -d "$HOME/tools/ldb_toolchain" ]]; then
     export LDB_TOOLCHAIN_HOME="$HOME/tools/ldb_toolchain"

@@ -12,7 +12,7 @@
 #   4. Clones this dotfiles repo to ~/code/dotfiles
 #   5. Configures git (name, email)
 #   6. Sets up bash (source-based, non-destructive)
-#   7. Installs development tools (JDK 17, Maven, ldb_toolchain)
+#   7. Installs development tools (JDK 17, Maven, ldb_toolchain, Go)
 #   8. Clones your repos from repos.conf
 #   9. Installs Doris thirdparty prebuilt dependencies
 #  10. Prepares Doris workspace runtime layout
@@ -310,13 +310,14 @@ setup_tools() {
     echo "  1) JDK 17"
     echo "  2) Maven 3.9.x"
     echo "  3) ldb_toolchain (C/C++ build toolchain)"
-    echo "  4) anaconda/conda (binary only)"
-    echo "  5) rclone (binary only)"
-    echo "  6) GitHub CLI (gh, binary only)"
+    echo "  4) Go (official binary)"
+    echo "  5) anaconda/conda (binary only)"
+    echo "  6) rclone (binary only)"
+    echo "  7) GitHub CLI (gh, binary only)"
     echo "  a) All of the above"
     echo "  n) Skip all"
     echo
-    read -rp "Which tools to install? [a/1/2/3/4/5/6/n] " tools_choice
+    read -rp "Which tools to install? [a/1/2/3/4/5/6/7/n] " tools_choice
     tools_choice="${tools_choice:-a}"
 
     case "$tools_choice" in
@@ -324,6 +325,7 @@ setup_tools() {
             source "$DOTFILES_DIR/install/java.sh"          && install_java          || warn "JDK installation had issues"
             source "$DOTFILES_DIR/install/maven.sh"         && install_maven         || warn "Maven installation had issues"
             source "$DOTFILES_DIR/install/ldb_toolchain.sh" && install_ldb_toolchain || warn "ldb_toolchain installation had issues"
+            source "$DOTFILES_DIR/install/go.sh"            && install_go            || warn "Go installation had issues"
             source "$DOTFILES_DIR/install/anaconda.sh"      && install_anaconda      || warn "anaconda installation had issues"
             source "$DOTFILES_DIR/install/rclone.sh"        && install_rclone        || warn "rclone installation had issues"
             source "$DOTFILES_DIR/install/gh.sh"            && install_gh            || warn "gh installation had issues"
@@ -343,12 +345,15 @@ setup_tools() {
                 source "$DOTFILES_DIR/install/ldb_toolchain.sh" && install_ldb_toolchain || warn "ldb_toolchain installation had issues"
             fi
             if [[ "$tools_choice" == *4* ]]; then
-                source "$DOTFILES_DIR/install/anaconda.sh" && install_anaconda || warn "anaconda installation had issues"
+                source "$DOTFILES_DIR/install/go.sh" && install_go || warn "Go installation had issues"
             fi
             if [[ "$tools_choice" == *5* ]]; then
-                source "$DOTFILES_DIR/install/rclone.sh" && install_rclone || warn "rclone installation had issues"
+                source "$DOTFILES_DIR/install/anaconda.sh" && install_anaconda || warn "anaconda installation had issues"
             fi
             if [[ "$tools_choice" == *6* ]]; then
+                source "$DOTFILES_DIR/install/rclone.sh" && install_rclone || warn "rclone installation had issues"
+            fi
+            if [[ "$tools_choice" == *7* ]]; then
                 source "$DOTFILES_DIR/install/gh.sh" && install_gh || warn "gh installation had issues"
             fi
             ;;
@@ -513,6 +518,7 @@ print_summary() {
     echo "  bash $DOTFILES_DIR/install/java.sh"
     echo "  bash $DOTFILES_DIR/install/maven.sh"
     echo "  bash $DOTFILES_DIR/install/ldb_toolchain.sh"
+    echo "  bash $DOTFILES_DIR/install/go.sh"
     echo "  bash $DOTFILES_DIR/install/anaconda.sh"
     echo "  bash $DOTFILES_DIR/install/rclone.sh"
     echo "  bash $DOTFILES_DIR/install/gh.sh"
