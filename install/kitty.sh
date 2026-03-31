@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # install/kitty.sh - Point kitty config to dotfiles managed config
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 source "$SCRIPT_DIR/_common.sh"
 
@@ -43,6 +47,6 @@ install_kitty() {
     success "Linked $KITTY_CONFIG_LINK -> $KITTY_CONFIG_TARGET"
 }
 
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
     install_kitty
 fi

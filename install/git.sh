@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # install/git.sh - Install git and deploy gitconfig
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/code/dotfiles}"
@@ -73,7 +77,7 @@ configure_git() {
 }
 
 # Run if executed directly
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
     install_git
     configure_git
 fi

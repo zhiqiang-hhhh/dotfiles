@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # install/java.sh - Install JDK 17
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 info()    { printf "\033[34m[INFO]\033[0m %s\n" "$1"; }
@@ -84,8 +88,8 @@ install_java() {
 }
 
 # Run if executed directly
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
     source "$SCRIPT_DIR/_common.sh"
 
     install_java

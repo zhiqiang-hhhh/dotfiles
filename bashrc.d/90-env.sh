@@ -22,6 +22,10 @@ if [[ -z "${JAVA_HOME:-}" ]]; then
     fi
     if [[ -n "$_java_home" ]]; then
         export JAVA_HOME="$_java_home"
+    elif [[ -d "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]]; then
+        export JAVA_HOME="/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
+    elif [[ -d "/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]]; then
+        export JAVA_HOME="/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
     fi
     unset _java_home
 fi
@@ -55,4 +59,6 @@ export HISTSIZE=10000
 export HISTFILESIZE=20000
 export HISTCONTROL=ignoreboth:erasedups  # No duplicates, ignore leading space
 export HISTTIMEFORMAT="%Y-%m-%d %H:%M:%S  "
-shopt -s histappend  # Append to history instead of overwriting
+if command -v shopt >/dev/null 2>&1; then
+    shopt -s histappend  # Append to history instead of overwriting
+fi

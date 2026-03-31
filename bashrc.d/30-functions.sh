@@ -58,9 +58,11 @@ _complete_t() {
     fi
 }
 
-complete -o nospace -F _complete_c c
-complete -o nospace -F _complete_w w
-complete -o nospace -F _complete_t t
+if command -v complete >/dev/null 2>&1; then
+    complete -o nospace -F _complete_c c
+    complete -o nospace -F _complete_w w
+    complete -o nospace -F _complete_t t
+fi
 
 # --- Utility functions ---
 

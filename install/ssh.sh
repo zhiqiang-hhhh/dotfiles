@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # install/ssh.sh - Generate SSH key and guide user to add it to GitHub
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 info()    { printf "\033[34m[INFO]\033[0m %s\n" "$1"; }
@@ -68,6 +72,6 @@ setup_ssh() {
 }
 
 # Run if executed directly
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
     setup_ssh
 fi

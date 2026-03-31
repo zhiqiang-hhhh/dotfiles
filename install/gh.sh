@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # install/gh.sh - Install GitHub CLI binary to ~/tools/github-cli
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 GH_VERSION="${GH_VERSION:-latest}"
@@ -208,8 +212,8 @@ install_gh() {
     fi
 }
 
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
     source "$SCRIPT_DIR/_common.sh"
 
     install_gh

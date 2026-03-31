@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # install/maven.sh - Install Apache Maven 3.9.x to ~/tools/maven
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 MAVEN_VERSION="${MAVEN_VERSION:-3.9.14}"
@@ -72,8 +76,8 @@ install_maven() {
 }
 
 # Run if executed directly
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
     source "$SCRIPT_DIR/_common.sh"
 
     install_maven

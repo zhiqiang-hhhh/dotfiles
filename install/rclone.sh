@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # install/rclone.sh - Install rclone binary to ~/tools/rclone
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 RCLONE_VERSION="${RCLONE_VERSION:-latest}"
@@ -163,8 +167,8 @@ install_rclone() {
     fi
 }
 
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
     source "$SCRIPT_DIR/_common.sh"
 
     install_rclone

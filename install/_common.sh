@@ -75,6 +75,17 @@ BASHRC_BLOCK
 
 hint_source_bashrc() {
     echo
+    if [[ -n "${ZSH_VERSION:-}" || "${SHELL:-}" == */zsh ]]; then
+        info "Detected zsh. Dotfiles shell setup is managed in ~/.bashrc."
+        info "Open a bash shell to use it now:"
+        echo
+        echo "  bash"
+        echo
+        info "Or manually port the source block from ~/.bashrc to ~/.zshrc if you use zsh as your main shell."
+        echo
+        return 0
+    fi
+
     info "To activate the new environment in your current shell, run:"
     echo
     echo "  source ~/.bashrc"

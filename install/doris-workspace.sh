@@ -7,6 +7,10 @@
 # up after restart.
 #
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 if ! declare -f info &>/dev/null; then
@@ -132,8 +136,8 @@ install_doris_workspace() {
     info "Workspace Doris runtime is ready at: $workspace_doris_dir"
 }
 
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
     source "$SCRIPT_DIR/_common.sh"
 
     install_doris_workspace

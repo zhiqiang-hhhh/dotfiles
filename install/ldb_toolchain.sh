@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # install/ldb_toolchain.sh - Download and install ldb_toolchain_gen
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 LDB_VERSION="${LDB_VERSION:-v0.26}"
@@ -108,8 +112,8 @@ install_ldb_toolchain() {
 }
 
 # Run if executed directly
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
     source "$SCRIPT_DIR/_common.sh"
 
     install_ldb_toolchain

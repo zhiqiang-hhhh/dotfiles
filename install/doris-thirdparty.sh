@@ -18,6 +18,10 @@
 #   ~/code/doris/thirdparty/installed          - symlink -> above
 #
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 # Helper functions (standalone-safe: only define if not already defined)
@@ -184,8 +188,8 @@ _create_thirdparty_symlink() {
 
 # ---- Standalone execution ----
 
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
     source "$SCRIPT_DIR/_common.sh"
 
     install_doris_thirdparty

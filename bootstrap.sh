@@ -18,6 +18,10 @@
 #  10. Prepares Doris workspace runtime layout
 #
 
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
 set -euo pipefail
 
 # ============================================================
