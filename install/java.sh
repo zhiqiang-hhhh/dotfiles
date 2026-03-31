@@ -32,7 +32,16 @@ install_java() {
     fi
 
     info "Installing JDK 17..."
-    if command -v yum &>/dev/null; then
+    if command -v brew &>/dev/null; then
+        brew install openjdk@17
+        if [[ -d "/opt/homebrew/opt/openjdk@17" ]]; then
+            info "Detected Homebrew OpenJDK path: /opt/homebrew/opt/openjdk@17"
+            info "Consider adding to PATH if needed: export PATH=\"/opt/homebrew/opt/openjdk@17/bin:$PATH\""
+        elif [[ -d "/usr/local/opt/openjdk@17" ]]; then
+            info "Detected Homebrew OpenJDK path: /usr/local/opt/openjdk@17"
+            info "Consider adding to PATH if needed: export PATH=\"/usr/local/opt/openjdk@17/bin:$PATH\""
+        fi
+    elif command -v yum &>/dev/null; then
         # Try different package names for CentOS/RHEL
         if yum list available java-17-openjdk-devel &>/dev/null 2>&1; then
             sudo yum install -y java-17-openjdk-devel
@@ -63,6 +72,10 @@ install_java() {
     local java_home=""
     if [[ -d "/usr/lib/jvm" ]]; then
         java_home="$(find /usr/lib/jvm -maxdepth 1 -name 'java-17*' -type d | head -1)"
+    elif [[ -d "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]]; then
+        java_home="/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
+    elif [[ -d "/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]]; then
+        java_home="/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
     fi
     if [[ -n "$java_home" ]]; then
         info "Detected JAVA_HOME: $java_home"

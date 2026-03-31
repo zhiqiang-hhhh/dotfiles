@@ -16,6 +16,14 @@ install_ldb_toolchain() {
     info "=== ldb_toolchain Setup (${LDB_VERSION}) ==="
     echo
 
+    local os
+    os="$(uname -s)"
+    if [[ "$os" == "Darwin" ]]; then
+        warn "ldb_toolchain installer is Linux-focused and is not supported on macOS."
+        warn "Skipping ldb_toolchain installation on macOS."
+        return 0
+    fi
+
     # Check if already installed (directory exists and has gcc binary)
     if [[ -x "$LDB_INSTALL_DIR/bin/gcc" ]]; then
         success "ldb_toolchain already installed at $LDB_INSTALL_DIR"

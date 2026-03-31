@@ -30,12 +30,30 @@ _detect_arch() {
     esac
 }
 
+_detect_os() {
+    local os
+    os="$(uname -s)"
+    case "$os" in
+        Linux)
+            echo "linux"
+            ;;
+        Darwin)
+            echo "osx"
+            ;;
+        *)
+            warn "Unsupported OS: $os"
+            return 1
+            ;;
+    esac
+}
+
 _default_url() {
-    local arch="$1"
+    local os="$1"
+    local arch="$2"
     if [[ "$RCLONE_VERSION" == "latest" ]]; then
-        echo "https://downloads.rclone.org/rclone-current-linux-${arch}.zip"
+        echo "https://downloads.rclone.org/rclone-current-${os}-${arch}.zip"
     else
-        echo "https://downloads.rclone.org/${RCLONE_VERSION}/rclone-${RCLONE_VERSION}-linux-${arch}.zip"
+        echo "https://downloads.rclone.org/${RCLONE_VERSION}/rclone-${RCLONE_VERSION}-${os}-${arch}.zip"
     fi
 }
 
@@ -62,15 +80,17 @@ install_rclone() {
     fi
 
     local arch
+    local os
+    os="$(_detect_os)" || return 1
     arch="$(_detect_arch)" || return 1
 
     if [[ -z "$RCLONE_URL" ]]; then
-        RCLONE_URL="$(_default_url "$arch")"
+        RCLONE_URL="$(_default_url "$os" "$arch")"
     fi
 
     local tmp_file
     local tmp_dir
-    tmp_file="/tmp/rclone-${arch}-$$"
+    tmp_file="/tmp/rclone-${os}-${arch}-$$"
     tmp_dir="$(mktemp -d)"
 
     info "Downloading rclone package..."

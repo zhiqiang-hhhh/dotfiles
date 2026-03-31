@@ -31,19 +31,38 @@ _detect_arch() {
     esac
 }
 
+_detect_os() {
+    local os
+    os="$(uname -s)"
+    case "$os" in
+        Linux)
+            echo "linux"
+            ;;
+        Darwin)
+            echo "darwin"
+            ;;
+        *)
+            warn "Unsupported OS: $os"
+            return 1
+            ;;
+    esac
+}
+
 _resolve_download_url() {
     local target_version="$1"
     local arch="$2"
-    local api_url="$3"
+    local os="$3"
+    local api_url="$4"
 
-    python3 - "$target_version" "$arch" "$api_url" <<'PY'
+    python3 - "$target_version" "$arch" "$os" "$api_url" <<'PY'
 import json
 import sys
 import urllib.request
 
 target_version = sys.argv[1]
 arch = sys.argv[2]
-api_url = sys.argv[3]
+os_name = sys.argv[3]
+api_url = sys.argv[4]
 
 with urllib.request.urlopen(api_url) as resp:
     data = json.load(resp)
@@ -67,10 +86,10 @@ else:
         print("", end="")
         raise SystemExit(1)
 
-wanted_name = f"{release.get('version')}.linux-{arch}.tar.gz"
+wanted_name = f"{release.get('version')}.{os_name}-{arch}.tar.gz"
 for f in release.get("files", []):
     if (
-        f.get("os") == "linux"
+        f.get("os") == os_name
         and f.get("arch") == arch
         and f.get("kind") == "archive"
         and f.get("filename") == wanted_name
@@ -106,11 +125,13 @@ install_go() {
     fi
 
     local arch
+    local os
+    os="$(_detect_os)" || return 1
     arch="$(_detect_arch)" || return 1
 
     if [[ -z "$GO_URL" ]]; then
         info "Resolving Go download URL..."
-        if ! GO_URL="$(_resolve_download_url "$GO_VERSION" "$arch" "$GO_API_URL")"; then
+        if ! GO_URL="$(_resolve_download_url "$GO_VERSION" "$arch" "$os" "$GO_API_URL")"; then
             warn "Failed to resolve Go download URL from release metadata."
             warn "Set GO_URL manually and rerun this script."
             return 1
@@ -118,7 +139,7 @@ install_go() {
     fi
 
     local tmp_file
-    tmp_file="/tmp/go-linux-${arch}-$$.tar.gz"
+    tmp_file="/tmp/go-${os}-${arch}-$$.tar.gz"
 
     info "Downloading Go package..."
     info "URL: $GO_URL"

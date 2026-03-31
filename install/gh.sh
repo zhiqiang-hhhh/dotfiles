@@ -31,19 +31,38 @@ _detect_arch() {
     esac
 }
 
+_detect_os() {
+    local os
+    os="$(uname -s)"
+    case "$os" in
+        Linux)
+            echo "linux"
+            ;;
+        Darwin)
+            echo "macOS"
+            ;;
+        *)
+            warn "Unsupported OS: $os"
+            return 1
+            ;;
+    esac
+}
+
 _resolve_download_url() {
     local target_version="$1"
     local arch="$2"
-    local api_url="$3"
+    local os="$3"
+    local api_url="$4"
 
-    python3 - "$target_version" "$arch" "$api_url" <<'PY'
+    python3 - "$target_version" "$arch" "$os" "$api_url" <<'PY'
 import json
 import sys
 import urllib.request
 
 target_version = sys.argv[1]
 arch = sys.argv[2]
-api_url = sys.argv[3]
+os_name = sys.argv[3]
+api_url = sys.argv[4]
 
 with urllib.request.urlopen(api_url) as resp:
     data = json.load(resp)
@@ -71,10 +90,10 @@ if not release:
     print("", end="")
     raise SystemExit(1)
 
-wanted_suffix = f"linux_{arch}.tar.gz"
+wanted_suffixes = [f"{os_name}_{arch}.tar.gz", f"{os_name}_{arch}.zip"]
 for asset in release.get("assets", []):
     name = asset.get("name", "")
-    if name.startswith("gh_") and name.endswith(wanted_suffix):
+    if name.startswith("gh_") and any(name.endswith(suffix) for suffix in wanted_suffixes):
         print(asset.get("browser_download_url", ""))
         raise SystemExit(0)
 
@@ -106,11 +125,13 @@ install_gh() {
     fi
 
     local arch
+    local os
+    os="$(_detect_os)" || return 1
     arch="$(_detect_arch)" || return 1
 
     if [[ -z "$GH_URL" ]]; then
         info "Resolving GitHub CLI download URL..."
-        if ! GH_URL="$(_resolve_download_url "$GH_VERSION" "$arch" "$GH_API_URL")"; then
+        if ! GH_URL="$(_resolve_download_url "$GH_VERSION" "$arch" "$os" "$GH_API_URL")"; then
             warn "Failed to resolve gh download URL from GitHub release metadata."
             warn "Set GH_URL manually and rerun this script."
             return 1
@@ -119,7 +140,7 @@ install_gh() {
 
     local tmp_file
     local tmp_dir
-    tmp_file="/tmp/gh-linux-${arch}-$$"
+    tmp_file="/tmp/gh-${os}-${arch}-$$"
     tmp_dir="$(mktemp -d)"
 
     info "Downloading gh package..."
@@ -147,6 +168,15 @@ install_gh() {
 
     if [[ "$GH_URL" == *.tar.gz ]]; then
         tar -xzf "$tmp_file" -C "$tmp_dir"
+    elif [[ "$GH_URL" == *.zip ]]; then
+        if command -v unzip &>/dev/null; then
+            unzip -oq "$tmp_file" -d "$tmp_dir"
+        else
+            warn "Archive is zip but unzip is not installed."
+            rm -f "$tmp_file"
+            rm -rf "$tmp_dir"
+            return 1
+        fi
     else
         warn "Unexpected package format: $GH_URL"
         rm -f "$tmp_file"

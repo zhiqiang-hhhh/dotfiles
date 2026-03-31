@@ -79,7 +79,9 @@ setup_git_install() {
     fi
 
     info "Git not found, installing..."
-    if command -v yum &>/dev/null; then
+    if command -v brew &>/dev/null; then
+        brew install git
+    elif command -v yum &>/dev/null; then
         sudo yum install -y git
     elif command -v apt-get &>/dev/null; then
         sudo apt-get update && sudo apt-get install -y git

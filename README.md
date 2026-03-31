@@ -6,6 +6,12 @@ This repo now also includes kitty terminal config under `kitty/`, so terminal ke
 
 Inspired by https://github.com/ryanb/dotfiles.
 
+## Platform support
+
+- Linux: fully supported.
+- macOS: supported for bootstrap, shell/git/ssh setup, and most optional tool installers.
+- `install/ldb_toolchain.sh` is Linux-focused and will be skipped on macOS.
+
 ## Kitty config (new)
 
 - Tracked kitty config lives at `kitty/kitty.conf`

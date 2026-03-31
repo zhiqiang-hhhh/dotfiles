@@ -63,7 +63,7 @@ _extract_zst_tar() {
     fi
 
     warn "Cannot extract .tar.zst: neither 'tar --zstd' nor 'zstd' is available."
-    warn "Please install zstd first (for CentOS: sudo yum install -y zstd)."
+    warn "Please install zstd first (e.g., brew install zstd or sudo yum install -y zstd)."
     return 1
 }
 
@@ -75,7 +75,7 @@ _extract_conda_package() {
 
     if ! command -v unzip &>/dev/null; then
         warn "Cannot extract .conda package: 'unzip' is required."
-        warn "Please install unzip first (for CentOS: sudo yum install -y unzip)."
+        warn "Please install unzip first (e.g., brew install unzip or sudo yum install -y unzip)."
         rm -rf "$unpack_dir"
         return 1
     fi
@@ -111,17 +111,41 @@ _extract_conda_package() {
 }
 
 _detect_subdir() {
+    local os
     local arch
+    os="$(uname -s)"
     arch="$(uname -m)"
-    case "$arch" in
-        x86_64|amd64)
-            echo "linux-64"
+    case "$os" in
+        Linux)
+            case "$arch" in
+                x86_64|amd64)
+                    echo "linux-64"
+                    ;;
+                aarch64|arm64)
+                    echo "linux-aarch64"
+                    ;;
+                *)
+                    warn "Unsupported architecture: $arch"
+                    return 1
+                    ;;
+            esac
             ;;
-        aarch64|arm64)
-            echo "linux-aarch64"
+        Darwin)
+            case "$arch" in
+                x86_64|amd64)
+                    echo "osx-64"
+                    ;;
+                aarch64|arm64)
+                    echo "osx-arm64"
+                    ;;
+                *)
+                    warn "Unsupported architecture: $arch"
+                    return 1
+                    ;;
+            esac
             ;;
         *)
-            warn "Unsupported architecture: $arch"
+            warn "Unsupported OS: $os"
             return 1
             ;;
     esac
@@ -258,7 +282,7 @@ install_anaconda() {
 
     rm -f "$tmp_file"
 
-    # Some conda-standalone builds ship as standalone_conda/conda.exe on Linux.
+    # Some conda-standalone builds ship as standalone_conda/conda.exe.
     # Normalize to ~/tools/anaconda/bin/conda so PATH setup remains stable.
     if [[ ! -x "$ANACONDA_BIN_DIR/conda" ]]; then
         mkdir -p "$ANACONDA_BIN_DIR"
