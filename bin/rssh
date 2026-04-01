@@ -9,6 +9,64 @@ if [[ -z "$rssh_bin" || ! -x "$rssh_bin" ]]; then
   rssh_bin="${0:A}"
 fi
 
+# ---------------------------------------------------------------------------
+# Ensure a detached ControlMaster exists for this destination so that
+# closing any individual window never tears down the shared connection.
+# We parse `ssh -G` output to discover the effective ControlPath/ControlMaster
+# settings. If a master socket does not yet exist we spawn one with -MNf.
+# ---------------------------------------------------------------------------
+ensure_control_master() {
+  local resolved
+  resolved="$(ssh -G "$@" 2>/dev/null)" || return 0
+
+  local ctl_path ctl_master
+  ctl_path="$(printf '%s\n' "$resolved" | awk '$1=="controlpath"{print $2; exit}')"
+  ctl_master="$(printf '%s\n' "$resolved" | awk '$1=="controlmaster"{print $2; exit}')"
+
+  # Only act when the user has ControlMaster enabled (auto/yes/autoask)
+  case "$ctl_master" in
+    auto|yes|autoask) ;;
+    *) return 0 ;;
+  esac
+
+  [[ -n "$ctl_path" ]] || return 0
+
+  # If the socket already exists and is alive, nothing to do
+  if ssh -O check "$@" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Spawn a background ControlMaster in a new session so it survives
+  # kitty closing the pane.  When kitty tears down a PTY, the kernel
+  # kills every process in that session -- including backgrounded ssh
+  # masters started with plain `ssh -MNf`.  Using setsid() puts the
+  # master in its own session with no controlling terminal.
+  # macOS lacks setsid(1), so we use perl POSIX::setsid instead.
+  perl -e '
+    use POSIX qw(setsid);
+    fork and exit 0;
+    setsid();
+    exec @ARGV;
+  ' -- ssh -MNf "$@" >/dev/null 2>&1
+  local rc=$?
+  if (( rc != 0 )); then
+    echo "rssh: warn: failed to spawn background ControlMaster" >&2
+    return 0
+  fi
+
+  # Wait for the socket to become ready. With ProxyJump the connection
+  # may take several seconds to establish.
+  local i=0
+  while (( i < 50 )); do
+    if ssh -O check "$@" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 0.2
+    (( i++ ))
+  done
+  echo "rssh: warn: background ControlMaster socket not ready after 10s" >&2
+}
+
 publish_state() {
   local cmd="$1"
   [[ -n "${KITTY_WINDOW_ID:-}" ]] || return 0
@@ -31,8 +89,11 @@ clear_state() {
   fi
 }
 
+# Ensure a detached ControlMaster is running before we connect
+ensure_control_master "$@"
+
 quoted_cmd="${(q)rssh_bin} ${(q)@}"
 publish_state "$quoted_cmd"
 trap clear_state EXIT
 
-ssh "$@"
+ssh -o ControlMaster=no "$@"
