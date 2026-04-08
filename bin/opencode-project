@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+if [[ -z "${BASH_VERSION:-}" ]]; then
+    exec bash "$0" "$@"
+fi
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+RULES_FILE="$PROJECT_DIR/AGENTS.md"
+
+if [[ ! -f "$RULES_FILE" ]]; then
+    printf 'AGENTS.md not found at %s\n' "$RULES_FILE" >&2
+    exit 1
+fi
+
+RULES_CONTENT="$(<"$RULES_FILE")"
+STARTUP_PROMPT=$(cat <<EOF
+You are working in the repository at $PROJECT_DIR.
+Follow the project rules below for the entire session.
+
+$RULES_CONTENT
+EOF
+)
+
+exec opencode "$PROJECT_DIR" --prompt "$STARTUP_PROMPT" "$@"
