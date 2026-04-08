@@ -7,12 +7,12 @@
 #
 # What it does:
 #   1. Creates standard directory structure (~/code, ~/workspace, ~/tools, ~/bin)
-#   2. Installs git (if missing)
+#   2. Checks git availability (optional at bootstrap time)
 #   3. Generates SSH key and guides you to add it to GitHub
 #   4. Clones this dotfiles repo to ~/code/dotfiles
 #   5. Configures git (name, email)
 #   6. Sets up bash (source-based, non-destructive)
-#   7. Installs development tools (JDK 17, Maven, ldb_toolchain, Go)
+#   7. Installs development tools (JDK 17, Maven, ldb_toolchain, Go, ripgrep)
 #   8. Clones your repos from repos.conf
 #   9. Installs Doris thirdparty prebuilt dependencies
 #  10. Prepares Doris workspace runtime layout
@@ -71,29 +71,20 @@ setup_directories() {
 }
 
 # ============================================================
-# Step 2: Install git
+# Step 2: Check git availability
 # ============================================================
 
 setup_git_install() {
-    header "Step 2: Git Installation"
+    header "Step 2: Git Availability"
 
     if command -v git &>/dev/null; then
         success "Git is already installed: $(git --version)"
         return 0
     fi
 
-    info "Git not found, installing..."
-    if command -v brew &>/dev/null; then
-        brew install git
-    elif command -v yum &>/dev/null; then
-        sudo yum install -y git
-    elif command -v apt-get &>/dev/null; then
-        sudo apt-get update && sudo apt-get install -y git
-    else
-        error "Could not detect package manager. Please install git manually and re-run."
-        exit 1
-    fi
-    success "Git installed: $(git --version)"
+    warn "Git is not available in the current environment."
+    warn "Bootstrap will continue by downloading the dotfiles archive instead of cloning with git."
+    warn "You can install git later with: bash $HOME/code/dotfiles/install/git.sh"
 }
 
 # ============================================================
@@ -174,17 +165,38 @@ setup_clone_dotfiles() {
 
     info "Cloning dotfiles to $DOTFILES_DIR..."
 
-    # Try SSH first, fall back to HTTPS
-    if git clone "$DOTFILES_REPO" "$DOTFILES_DIR" 2>/dev/null; then
+    # Try git first, then fall back to downloading the repository archive.
+    if command -v git &>/dev/null && git clone "$DOTFILES_REPO" "$DOTFILES_DIR" 2>/dev/null; then
         success "Cloned via SSH: $DOTFILES_REPO"
-    elif git clone "$DOTFILES_REPO_HTTPS" "$DOTFILES_DIR" 2>/dev/null; then
+    elif command -v git &>/dev/null && git clone "$DOTFILES_REPO_HTTPS" "$DOTFILES_DIR" 2>/dev/null; then
         success "Cloned via HTTPS: $DOTFILES_REPO_HTTPS"
         warn "Using HTTPS (you may want to switch to SSH later)"
         warn "  cd $DOTFILES_DIR && git remote set-url origin $DOTFILES_REPO"
     else
-        error "Failed to clone dotfiles repo!"
-        error "Make sure the repo exists: https://github.com/${GITHUB_USER}/dotfiles"
-        exit 1
+        local archive_url tmp_file tmp_dir extracted_dir
+        archive_url="https://github.com/${GITHUB_USER}/dotfiles/archive/refs/heads/main.tar.gz"
+        tmp_file="/tmp/dotfiles-bootstrap-$$.tar.gz"
+        tmp_dir="$(mktemp -d)"
+
+        info "Falling back to downloading repository archive..."
+        if command -v curl &>/dev/null; then
+            curl -fSL "$archive_url" -o "$tmp_file"
+        elif command -v wget &>/dev/null; then
+            wget -q --show-progress "$archive_url" -O "$tmp_file"
+        else
+            error "Neither git, curl, nor wget is available. Cannot fetch dotfiles repo."
+            rm -rf "$tmp_dir"
+            exit 1
+        fi
+
+        tar -xzf "$tmp_file" -C "$tmp_dir"
+        extracted_dir="$(printf '%s\n' "$tmp_dir"/* | sed -n '1p')"
+        rm -rf "$DOTFILES_DIR"
+        mv "$extracted_dir" "$DOTFILES_DIR"
+        rm -f "$tmp_file"
+        rm -rf "$tmp_dir"
+        success "Downloaded dotfiles archive to $DOTFILES_DIR"
+        warn "Repository was fetched without git metadata; pull/update requires git later."
     fi
 }
 
@@ -194,6 +206,12 @@ setup_clone_dotfiles() {
 
 setup_git_config() {
     header "Step 5: Git Configuration"
+
+    if ! command -v git &>/dev/null; then
+        warn "git command not found, skipping git config for now"
+        warn "Install git later, then run: bash $DOTFILES_DIR/install/git.sh"
+        return 0
+    fi
 
     local gitconfig_src="$DOTFILES_DIR/gitconfig"
     local gitconfig_dst="$HOME/.gitconfig"
@@ -320,10 +338,12 @@ setup_tools() {
     echo "  5) anaconda/conda (binary only)"
     echo "  6) rclone (binary only)"
     echo "  7) GitHub CLI (gh, binary only)"
+    echo "  8) ripgrep"
+    echo "  9) Monitoring stack (Prometheus + Grafana + Node Exporter)"
     echo "  a) All of the above"
     echo "  n) Skip all"
     echo
-    read -rp "Which tools to install? [a/1/2/3/4/5/6/7/n] " tools_choice
+    read -rp "Which tools to install? [a/1/2/3/4/5/6/7/8/9/n] " tools_choice
     tools_choice="${tools_choice:-a}"
 
     case "$tools_choice" in
@@ -335,6 +355,8 @@ setup_tools() {
             source "$DOTFILES_DIR/install/anaconda.sh"      && install_anaconda      || warn "anaconda installation had issues"
             source "$DOTFILES_DIR/install/rclone.sh"        && install_rclone        || warn "rclone installation had issues"
             source "$DOTFILES_DIR/install/gh.sh"            && install_gh            || warn "gh installation had issues"
+            source "$DOTFILES_DIR/install/ripgrep.sh"      && install_ripgrep      || warn "ripgrep installation had issues"
+            source "$DOTFILES_DIR/install/monitoring.sh"    && install_monitoring    || warn "Monitoring stack installation had issues"
             ;;
         n|N)
             info "Skipping tool installation"
@@ -361,6 +383,12 @@ setup_tools() {
             fi
             if [[ "$tools_choice" == *7* ]]; then
                 source "$DOTFILES_DIR/install/gh.sh" && install_gh || warn "gh installation had issues"
+            fi
+            if [[ "$tools_choice" == *8* ]]; then
+                source "$DOTFILES_DIR/install/ripgrep.sh" && install_ripgrep || warn "ripgrep installation had issues"
+            fi
+            if [[ "$tools_choice" == *9* ]]; then
+                source "$DOTFILES_DIR/install/monitoring.sh" && install_monitoring || warn "Monitoring stack installation had issues"
             fi
             ;;
     esac
@@ -490,6 +518,21 @@ setup_doris_workspace() {
 }
 
 # ============================================================
+# Step 11: Monitoring stack
+# ============================================================
+
+setup_monitoring() {
+    header "Step 11: Monitoring Stack"
+
+    if ! confirm "Install monitoring stack (Prometheus + Grafana + Node Exporter)?"; then
+        info "Skipping monitoring stack"
+        return 0
+    fi
+
+    source "$DOTFILES_DIR/install/monitoring.sh" && install_monitoring || warn "Monitoring stack installation had issues"
+}
+
+# ============================================================
 # Summary
 # ============================================================
 
@@ -528,7 +571,9 @@ print_summary() {
     echo "  bash $DOTFILES_DIR/install/anaconda.sh"
     echo "  bash $DOTFILES_DIR/install/rclone.sh"
     echo "  bash $DOTFILES_DIR/install/gh.sh"
+    echo "  bash $DOTFILES_DIR/install/ripgrep.sh"
     echo "  bash $DOTFILES_DIR/install/kitty.sh"
+    echo "  bash $DOTFILES_DIR/install/monitoring.sh"
     echo "  bash $DOTFILES_DIR/install/doris-thirdparty.sh"
     echo "  bash $DOTFILES_DIR/install/doris-workspace.sh"
     echo
@@ -564,6 +609,7 @@ main() {
     setup_repos             # Step 8
     setup_doris_thirdparty  # Step 9
     setup_doris_workspace   # Step 10
+    setup_monitoring        # Step 11
     print_summary           # Done
 }
 

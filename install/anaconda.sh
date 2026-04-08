@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install/anaconda.sh - Install conda package manager (binary-only)
+# install/anaconda.sh - Install conda standalone (binary-only)
 
 if [[ -z "${BASH_VERSION:-}" ]]; then
     exec bash "$0" "$@"
@@ -67,7 +67,7 @@ _extract_zst_tar() {
     fi
 
     warn "Cannot extract .tar.zst: neither 'tar --zstd' nor 'zstd' is available."
-    warn "Please install zstd first (e.g., brew install zstd or sudo yum install -y zstd)."
+    warn "Please provide 'zstd' in your user environment and rerun this installer."
     return 1
 }
 
@@ -79,7 +79,7 @@ _extract_conda_package() {
 
     if ! command -v unzip &>/dev/null; then
         warn "Cannot extract .conda package: 'unzip' is required."
-        warn "Please install unzip first (e.g., brew install unzip or sudo yum install -y unzip)."
+        warn "Please provide 'unzip' in your user environment and rerun this installer."
         rm -rf "$unpack_dir"
         return 1
     fi

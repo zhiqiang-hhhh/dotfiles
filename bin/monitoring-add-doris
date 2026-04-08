@@ -1,0 +1,239 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_monitoring-common.sh"
+source "$SCRIPT_DIR/_doris-common.sh"
+
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+PROM_CONFIG="$HOME/workspace/monitoring/prometheus/prometheus.yml"
+DASHBOARD_DIR="$HOME/workspace/monitoring/grafana/provisioning/dashboards/json"
+DORIS_DASHBOARD_URL="https://grafana.com/api/dashboards/9734/revisions/5/download"
+MONITORING_PROMETHEUS_UID="local-prometheus"
+LOCAL_DORIS_DASHBOARD_SOURCE="$DASHBOARD_DIR/doris-overview.raw.json"
+REPO_DORIS_DASHBOARD_SOURCE="$REPO_ROOT/monitoring/dashboards/doris-overview.raw.json"
+
+if [[ ! -f "$PROM_CONFIG" ]]; then
+    echo "missing Prometheus config: $PROM_CONFIG" >&2
+    echo "run: bash $HOME/code/dotfiles/install/monitoring.sh" >&2
+    exit 1
+fi
+
+fe_conf="$(doris_fe_conf_path)"
+be_conf="$(doris_be_conf_path)"
+
+if [[ ! -f "$fe_conf" || ! -f "$be_conf" ]]; then
+    warn "Doris workspace not found. Skip adding Doris monitoring."
+    warn "Prepare Doris first, then rerun: monitoring-add-doris"
+    exit 1
+fi
+
+fe_port="$(doris_conf_get "$fe_conf" "http_port" "8030")"
+be_port="$(doris_conf_get "$be_conf" "webserver_port" "8040")"
+fe_target="127.0.0.1:${fe_port}"
+be_target="127.0.0.1:${be_port}"
+
+fe_ok=0
+be_ok=0
+curl -sf "http://${fe_target}/metrics" >/dev/null 2>&1 && fe_ok=1
+curl -sf "http://${be_target}/metrics" >/dev/null 2>&1 && be_ok=1
+
+if [[ "$fe_ok" -eq 0 && "$be_ok" -eq 0 ]]; then
+    warn "Doris FE (${fe_target}) and BE (${be_target}) metrics endpoints are both unreachable."
+    warn "Start Doris cluster first, then rerun: monitoring-add-doris"
+    exit 1
+fi
+
+tmp_file="$(mktemp)"
+
+python3 - "$PROM_CONFIG" "$tmp_file" "$fe_ok" "$be_ok" "$fe_target" "$be_target" <<'PY'
+import pathlib
+import sys
+
+src = pathlib.Path(sys.argv[1])
+dst = pathlib.Path(sys.argv[2])
+fe_ok = sys.argv[3] == "1"
+be_ok = sys.argv[4] == "1"
+fe_target = sys.argv[5]
+be_target = sys.argv[6]
+
+text = src.read_text()
+marker = '  - job_name: "doris_cluster"\n'
+if marker in text:
+    start = text.index(marker)
+    next_job = text.find('\n  - job_name: ', start + len(marker))
+    if next_job == -1:
+        text = text[:start].rstrip() + "\n"
+    else:
+        text = text[:start].rstrip() + "\n" + text[next_job + 1:]
+
+job = []
+job.append('  - job_name: "doris_cluster"')
+job.append('    metrics_path: "/metrics"')
+job.append('    static_configs:')
+if fe_ok:
+    job.append(f"      - targets: ['{fe_target}']")
+    job.append('        labels:')
+    job.append('          group: fe')
+if be_ok:
+    job.append(f"      - targets: ['{be_target}']")
+    job.append('        labels:')
+    job.append('          group: be')
+
+text = text.rstrip() + "\n" + "\n".join(job) + "\n"
+dst.write_text(text)
+PY
+
+mv "$tmp_file" "$PROM_CONFIG"
+success "Updated Prometheus config with Doris targets"
+
+mkdir -p "$DASHBOARD_DIR"
+dashboard_file="$DASHBOARD_DIR/doris-overview.json"
+dashboard_tmp="$DASHBOARD_DIR/.doris-overview.tmp.json"
+
+dashboard_source="$dashboard_tmp"
+if [[ -s "$LOCAL_DORIS_DASHBOARD_SOURCE" ]]; then
+    cp "$LOCAL_DORIS_DASHBOARD_SOURCE" "$dashboard_tmp"
+elif [[ -s "$REPO_DORIS_DASHBOARD_SOURCE" ]]; then
+    cp "$REPO_DORIS_DASHBOARD_SOURCE" "$dashboard_tmp"
+elif ! curl -sf --connect-timeout 15 --max-time 60 -o "$dashboard_tmp" "$DORIS_DASHBOARD_URL"; then
+    rm -f "$dashboard_tmp"
+    warn "Failed to prepare Doris dashboard source"
+    dashboard_source=""
+fi
+
+if [[ -n "$dashboard_source" && -s "$dashboard_source" ]]; then
+        python3 - "$dashboard_source" "$dashboard_file" "$MONITORING_PROMETHEUS_UID" "$fe_target" "$be_target" "$be_ok" <<'PY'
+import json
+import pathlib
+import sys
+import re
+
+src = pathlib.Path(sys.argv[1])
+dst = pathlib.Path(sys.argv[2])
+prom_uid = sys.argv[3]
+fe_target = sys.argv[4]
+be_target = sys.argv[5]
+be_ok = sys.argv[6] == '1'
+dashboard = json.loads(src.read_text())
+
+def rewrite_expr(expr):
+    if not isinstance(expr, str):
+        return expr
+    expr = expr.replace('job="dx-test_cluster"', 'job="$cluster_name"')
+    expr = re.sub(r'cluster_name="cluster_[01]"', 'cluster_name="$cluster_name"', expr)
+    return expr
+
+def fix(obj):
+    if isinstance(obj, dict):
+        if 'datasource' in obj:
+            ds = obj['datasource']
+            if isinstance(ds, str):
+                obj['datasource'] = {'type': 'prometheus', 'uid': prom_uid}
+            elif isinstance(ds, dict):
+                ds['type'] = 'prometheus'
+                ds['uid'] = prom_uid
+        if 'expr' in obj:
+            obj['expr'] = rewrite_expr(obj['expr'])
+        for value in obj.values():
+            fix(value)
+    elif isinstance(obj, list):
+        for item in obj:
+            fix(item)
+
+fix(dashboard)
+dashboard['id'] = None
+dashboard['uid'] = 'doris-overview'
+dashboard['title'] = 'Doris Overview'
+dashboard.pop('__inputs', None)
+
+templating = dashboard.get('templating', {}).get('list', [])
+for item in templating:
+    name = item.get('name')
+    if name == 'datasource':
+        item['current'] = {
+            'selected': True,
+            'text': 'Prometheus',
+            'value': prom_uid,
+        }
+    elif name == 'cluster_name':
+        item['query'] = {
+            'query': 'label_values(node_info{type="is_master"}, job)',
+            'refId': 'Prometheus-cluster_name-Variable-Query',
+        }
+        item['current'] = {
+            'selected': True,
+            'text': 'doris_cluster',
+            'value': 'doris_cluster',
+        }
+    elif name in {'fe_cluster_id', 'be_cluster_id'}:
+        item['current'] = {
+            'selected': True,
+            'text': 'doris_cluster',
+            'value': 'doris_cluster',
+        }
+    elif name == 'fe_master':
+        item['current'] = {
+            'selected': True,
+            'text': fe_target,
+            'value': fe_target,
+        }
+    elif name == 'fe_instance':
+        item['current'] = {
+            'selected': True,
+            'text': fe_target,
+            'value': fe_target,
+        }
+    elif name == 'be_instance' and be_ok:
+        item['current'] = {
+            'selected': True,
+            'text': be_target,
+            'value': be_target,
+        }
+    elif name == 'node':
+        item['query'] = {
+            'qryType': 1,
+            'query': 'label_values(node_uname_info{job="node_exporter"},instance)',
+            'refId': 'PrometheusVariableQueryEditor-VariableQuery',
+        }
+        item['current'] = {
+            'selected': True,
+            'text': '127.0.0.1:9100',
+            'value': '127.0.0.1:9100',
+        }
+    elif name == 'job':
+        item['query'] = {
+            'qryType': 1,
+            'query': 'label_values(up{job="node_exporter"},job)',
+            'refId': 'PrometheusVariableQueryEditor-VariableQuery',
+        }
+        item['current'] = {
+            'selected': True,
+            'text': 'node_exporter',
+            'value': 'node_exporter',
+        }
+    elif name == 'ms_instance':
+        item['current'] = {
+            'selected': True,
+            'text': fe_target,
+            'value': fe_target,
+        }
+
+dst.write_text(json.dumps(dashboard, indent=2))
+PY
+    rm -f "$dashboard_tmp"
+    success "Prepared Doris Grafana dashboard"
+elif [[ -z "$dashboard_source" ]]; then
+    :
+else
+    rm -f "$dashboard_tmp"
+    warn "Failed to download Doris dashboard from grafana.com"
+fi
+
+if monitoring_is_running prometheus; then
+    monitoring_prometheus_reload
+else
+    info "Prometheus is not running yet; Doris config will be loaded on next start"
+fi

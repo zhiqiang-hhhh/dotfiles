@@ -17,12 +17,23 @@
 # GitHub CLI
 [[ -d "$HOME/tools/github-cli/bin" ]] && export PATH="$HOME/tools/github-cli/bin:$PATH"
 
+# Git (user-space install)
+[[ -d "$HOME/tools/git/bin" ]] && export PATH="$HOME/tools/git/bin:$PATH"
+
 # Maven
 [[ -d "$HOME/tools/maven/bin" ]] && export PATH="$HOME/tools/maven/bin:$PATH"
+
+# ripgrep
+[[ -d "$HOME/tools/ripgrep/bin" ]] && export PATH="$HOME/tools/ripgrep/bin:$PATH"
 
 # Go
 [[ -d "$HOME/tools/go/bin" ]] && export PATH="$HOME/tools/go/bin:$PATH"
 [[ -d "$HOME/go/bin" ]] && export PATH="$HOME/go/bin:$PATH"
+
+# Monitoring tools
+[[ -d "$HOME/tools/monitoring/prometheus" ]] && export PATH="$HOME/tools/monitoring/prometheus:$PATH"
+[[ -d "$HOME/tools/monitoring/grafana/bin" ]] && export PATH="$HOME/tools/monitoring/grafana/bin:$PATH"
+[[ -d "$HOME/tools/monitoring/node_exporter" ]] && export PATH="$HOME/tools/monitoring/node_exporter:$PATH"
 
 # Java - prefer JAVA_HOME if set
 if [[ -n "${JAVA_HOME:-}" && -d "$JAVA_HOME/bin" ]]; then

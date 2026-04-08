@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_monitoring-common.sh"
+source "$SCRIPT_DIR/_doris-common.sh"
+
+print_status() {
+    local component="$1"
+    local url=""
+
+    case "$component" in
+        prometheus)
+            url="http://127.0.0.1:$(monitoring_prometheus_port)"
+            ;;
+        grafana)
+            url="http://127.0.0.1:$(monitoring_grafana_port)"
+            ;;
+        node_exporter)
+            url="http://127.0.0.1:$(monitoring_node_exporter_port)/metrics"
+            ;;
+    esac
+
+    if monitoring_is_running "$component"; then
+        printf '%-14s running  (PID %s)  %s\n' "$component" "$(monitoring_get_pid "$component")" "$url"
+    else
+        printf '%-14s stopped\n' "$component"
+    fi
+}
+
+print_status node_exporter
+print_status prometheus
+print_status grafana
+
+prom_config="$HOME/workspace/monitoring/prometheus/prometheus.yml"
+fe_conf="$(doris_fe_conf_path)"
+be_conf="$(doris_be_conf_path)"
+fe_port="$(doris_conf_get "$fe_conf" "http_port" "8030")"
+be_port="$(doris_conf_get "$be_conf" "webserver_port" "8040")"
+
+if grep -q 'job_name: "doris_cluster"' "$prom_config" 2>/dev/null; then
+    if grep -q 'group: fe' "$prom_config" 2>/dev/null; then
+        printf '%-14s monitored  http://127.0.0.1:%s/metrics\n' "doris_fe" "$fe_port"
+    else
+        printf '%-14s not configured\n' "doris_fe"
+    fi
+
+    if grep -q 'group: be' "$prom_config" 2>/dev/null; then
+        printf '%-14s monitored  http://127.0.0.1:%s/metrics\n' "doris_be" "$be_port"
+    else
+        printf '%-14s not configured\n' "doris_be"
+    fi
+else
+    printf '%-14s not configured\n' "doris_fe"
+    printf '%-14s not configured\n' "doris_be"
+fi

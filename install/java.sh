@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
-# install/java.sh - Install JDK 17
+# install/java.sh - Install JDK 17 to ~/tools/jdk
 
 if [[ -z "${BASH_VERSION:-}" ]]; then
     exec bash "$0" "$@"
 fi
 
 set -euo pipefail
+
+JAVA_VERSION="${JAVA_VERSION:-17}"
+TOOLS_DIR="$HOME/tools"
+JAVA_INSTALL_DIR="$TOOLS_DIR/jdk"
+JAVA_URL="${JAVA_URL:-}"
 
 info()    { printf "\033[34m[INFO]\033[0m %s\n" "$1"; }
 warn()    { printf "\033[33m[WARN]\033[0m %s\n" "$1"; }
@@ -35,56 +40,88 @@ install_java() {
         return 0
     fi
 
-    info "Installing JDK 17..."
-    if command -v brew &>/dev/null; then
-        brew install openjdk@17
-        if [[ -d "/opt/homebrew/opt/openjdk@17" ]]; then
-            info "Detected Homebrew OpenJDK path: /opt/homebrew/opt/openjdk@17"
-            info "Consider adding to PATH if needed: export PATH=\"/opt/homebrew/opt/openjdk@17/bin:$PATH\""
-        elif [[ -d "/usr/local/opt/openjdk@17" ]]; then
-            info "Detected Homebrew OpenJDK path: /usr/local/opt/openjdk@17"
-            info "Consider adding to PATH if needed: export PATH=\"/usr/local/opt/openjdk@17/bin:$PATH\""
-        fi
-    elif command -v yum &>/dev/null; then
-        # Try different package names for CentOS/RHEL
-        if yum list available java-17-openjdk-devel &>/dev/null 2>&1; then
-            sudo yum install -y java-17-openjdk-devel
-        elif yum list available java-17-amazon-corretto-devel &>/dev/null 2>&1; then
-            sudo yum install -y java-17-amazon-corretto-devel
-        else
-            warn "JDK 17 package not found in yum repos."
-            info "You can install manually, e.g.:"
-            info "  sudo yum install -y java-17-openjdk-devel"
-            info "  or download from https://adoptium.net/"
+    local arch os_name tmp_file tmp_dir extracted_dir java_home
+    arch="$(uname -m)"
+    os_name="$(uname -s)"
+    case "$arch" in
+        x86_64|amd64) arch="x64" ;;
+        aarch64|arm64) arch="aarch64" ;;
+        *)
+            warn "Unsupported architecture: $arch"
             return 1
-        fi
-    elif command -v apt-get &>/dev/null; then
-        sudo apt-get update && sudo apt-get install -y openjdk-17-jdk
+            ;;
+    esac
+    case "$os_name" in
+        Linux) os_name="linux" ;;
+        Darwin) os_name="mac" ;;
+        *)
+            warn "Unsupported OS: $os_name"
+            return 1
+            ;;
+    esac
+
+    if [[ -z "$JAVA_URL" ]]; then
+        JAVA_URL="$(python3 - "$JAVA_VERSION" "$arch" "$os_name" <<'PY'
+import json
+import sys
+import urllib.request
+
+version, arch, os_name = sys.argv[1:4]
+url = f"https://api.adoptium.net/v3/assets/latest/{version}/hotspot?architecture={arch}&heap_size=normal&image_type=jdk&jvm_impl=hotspot&os={os_name}&project=jdk"
+with urllib.request.urlopen(url) as resp:
+    data = json.load(resp)
+pkg = data[0]["binary"]["package"]["link"]
+print(pkg)
+PY
+)" || {
+            warn "Failed to resolve JDK download URL."
+            return 1
+        }
+    fi
+
+    tmp_file="/tmp/jdk-${arch}-$$.tar.gz"
+    tmp_dir="$(mktemp -d)"
+
+    info "Downloading JDK package..."
+    info "URL: $JAVA_URL"
+    if command -v curl &>/dev/null; then
+        curl -fSL "$JAVA_URL" -o "$tmp_file" || {
+            rm -rf "$tmp_dir"
+            warn "Download failed."
+            return 1
+        }
+    elif command -v wget &>/dev/null; then
+        wget -q --show-progress "$JAVA_URL" -O "$tmp_file" || {
+            rm -rf "$tmp_dir"
+            warn "Download failed."
+            return 1
+        }
     else
-        warn "Could not detect package manager. Please install JDK 17 manually."
+        rm -rf "$tmp_dir"
+        warn "Neither curl nor wget found. Please install JDK manually."
         return 1
     fi
 
+    mkdir -p "$TOOLS_DIR"
+    rm -rf "$JAVA_INSTALL_DIR"
+    tar -xzf "$tmp_file" -C "$tmp_dir"
+    extracted_dir="$(printf '%s\n' "$tmp_dir"/* | sed -n '1p')"
+    java_home="$extracted_dir"
+    if [[ -d "$extracted_dir/Contents/Home" ]]; then
+        java_home="$extracted_dir/Contents/Home"
+    fi
+    mv "$java_home" "$JAVA_INSTALL_DIR"
+    rm -f "$tmp_file"
+    rm -rf "$tmp_dir"
+
     # Verify installation
-    if command -v java &>/dev/null; then
-        success "JDK 17 installed: $(java -version 2>&1 | head -1)"
+    if [[ -x "$JAVA_INSTALL_DIR/bin/java" ]]; then
+        success "JDK 17 installed: $($JAVA_INSTALL_DIR/bin/java -version 2>&1 | sed -n '1p')"
     else
         warn "Java command not found after installation, check your PATH"
     fi
 
-    # Detect JAVA_HOME
-    local java_home=""
-    if [[ -d "/usr/lib/jvm" ]]; then
-        java_home="$(find /usr/lib/jvm -maxdepth 1 -name 'java-17*' -type d | head -1)"
-    elif [[ -d "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]]; then
-        java_home="/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
-    elif [[ -d "/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]]; then
-        java_home="/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
-    fi
-    if [[ -n "$java_home" ]]; then
-        info "Detected JAVA_HOME: $java_home"
-        info "This will be set in bashrc.d/90-env.sh"
-    fi
+    info "JAVA_HOME will resolve to: $JAVA_INSTALL_DIR"
 }
 
 # Run if executed directly

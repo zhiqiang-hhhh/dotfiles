@@ -10,22 +10,26 @@ export LC_ALL="${LC_ALL:-en_US.UTF-8}"
 
 # Java
 if [[ -z "${JAVA_HOME:-}" ]]; then
+    if [[ -d "$HOME/tools/jdk" ]]; then
+        export JAVA_HOME="$HOME/tools/jdk"
     # Auto-detect JAVA_HOME on CentOS/RHEL
-    _java_home=""
-    if [[ -d "/usr/lib/jvm" ]]; then
-        for d in /usr/lib/jvm/java-17* /usr/lib/jvm/jdk-17*; do
-            if [[ -d "$d" ]]; then
-                _java_home="$d"
-                break
-            fi
-        done
-    fi
-    if [[ -n "$_java_home" ]]; then
-        export JAVA_HOME="$_java_home"
-    elif [[ -d "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]]; then
-        export JAVA_HOME="/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
-    elif [[ -d "/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]]; then
-        export JAVA_HOME="/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
+    else
+        _java_home=""
+        if [[ -d "/usr/lib/jvm" ]]; then
+            for d in /usr/lib/jvm/java-17* /usr/lib/jvm/jdk-17*; do
+                if [[ -d "$d" ]]; then
+                    _java_home="$d"
+                    break
+                fi
+            done
+        fi
+        if [[ -n "$_java_home" ]]; then
+            export JAVA_HOME="$_java_home"
+        elif [[ -d "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]]; then
+            export JAVA_HOME="/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
+        elif [[ -d "/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home" ]]; then
+            export JAVA_HOME="/usr/local/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"
+        fi
     fi
     unset _java_home
 fi
