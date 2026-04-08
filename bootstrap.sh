@@ -12,7 +12,7 @@
 #   4. Clones this dotfiles repo to ~/code/dotfiles
 #   5. Configures git (name, email)
 #   6. Sets up bash (source-based, non-destructive)
-#   7. Installs development tools (JDK 17, Maven, ldb_toolchain, Go, ripgrep)
+#   7. Installs development tools (JDK 17, Maven, ldb_toolchain, Go, ripgrep, crush)
 #   8. Clones your repos from repos.conf
 #   9. Installs Doris thirdparty prebuilt dependencies
 #  10. Prepares Doris workspace runtime layout
@@ -339,11 +339,12 @@ setup_tools() {
     echo "  6) rclone (binary only)"
     echo "  7) GitHub CLI (gh, binary only)"
     echo "  8) ripgrep"
-    echo "  9) Monitoring stack (Prometheus + Grafana + Node Exporter)"
+    echo "  9) crush (build from bundled source)"
+    echo "  0) Monitoring stack (Prometheus + Grafana + Node Exporter)"
     echo "  a) All of the above"
     echo "  n) Skip all"
     echo
-    read -rp "Which tools to install? [a/1/2/3/4/5/6/7/8/9/n] " tools_choice
+    read -rp "Which tools to install? [a/1/2/3/4/5/6/7/8/9/0/n] " tools_choice
     tools_choice="${tools_choice:-a}"
 
     case "$tools_choice" in
@@ -355,7 +356,8 @@ setup_tools() {
             source "$DOTFILES_DIR/install/anaconda.sh"      && install_anaconda      || warn "anaconda installation had issues"
             source "$DOTFILES_DIR/install/rclone.sh"        && install_rclone        || warn "rclone installation had issues"
             source "$DOTFILES_DIR/install/gh.sh"            && install_gh            || warn "gh installation had issues"
-            source "$DOTFILES_DIR/install/ripgrep.sh"      && install_ripgrep      || warn "ripgrep installation had issues"
+            source "$DOTFILES_DIR/install/ripgrep.sh"       && install_ripgrep       || warn "ripgrep installation had issues"
+            source "$DOTFILES_DIR/install/crush.sh"         && install_crush         || warn "crush installation had issues"
             source "$DOTFILES_DIR/install/monitoring.sh"    && install_monitoring    || warn "Monitoring stack installation had issues"
             ;;
         n|N)
@@ -388,6 +390,9 @@ setup_tools() {
                 source "$DOTFILES_DIR/install/ripgrep.sh" && install_ripgrep || warn "ripgrep installation had issues"
             fi
             if [[ "$tools_choice" == *9* ]]; then
+                source "$DOTFILES_DIR/install/crush.sh" && install_crush || warn "crush installation had issues"
+            fi
+            if [[ "$tools_choice" == *0* ]]; then
                 source "$DOTFILES_DIR/install/monitoring.sh" && install_monitoring || warn "Monitoring stack installation had issues"
             fi
             ;;
@@ -572,6 +577,7 @@ print_summary() {
     echo "  bash $DOTFILES_DIR/install/rclone.sh"
     echo "  bash $DOTFILES_DIR/install/gh.sh"
     echo "  bash $DOTFILES_DIR/install/ripgrep.sh"
+    echo "  bash $DOTFILES_DIR/install/crush.sh"
     echo "  bash $DOTFILES_DIR/install/kitty.sh"
     echo "  bash $DOTFILES_DIR/install/monitoring.sh"
     echo "  bash $DOTFILES_DIR/install/doris-thirdparty.sh"

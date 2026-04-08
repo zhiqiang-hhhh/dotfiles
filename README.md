@@ -40,7 +40,7 @@ This script will guide you through:
 - setting up SSH key and git config
 - cloning this repo to `~/code/dotfiles`
 - configuring `~/.bashrc` to source `bashrc.d/*.sh`
-- optional tool installation (JDK, Maven, ldb_toolchain, Go, anaconda/conda, rclone, GitHub CLI, ripgrep)
+- optional tool installation (JDK, Maven, ldb_toolchain, Go, anaconda/conda, rclone, GitHub CLI, ripgrep, crush)
 - optional monitoring stack installation (Prometheus, Grafana, Node Exporter)
 - cloning repos from `repos.conf`
 - optional Doris thirdparty setup
@@ -68,11 +68,29 @@ bash ~/code/dotfiles/install/anaconda.sh
 bash ~/code/dotfiles/install/rclone.sh
 bash ~/code/dotfiles/install/gh.sh
 bash ~/code/dotfiles/install/ripgrep.sh
+bash ~/code/dotfiles/install/crush.sh
 bash ~/code/dotfiles/install/monitoring.sh
 bash ~/code/dotfiles/install/kitty.sh
 bash ~/code/dotfiles/install/doris-thirdparty.sh
 bash ~/code/dotfiles/install/doris-workspace.sh
 ```
+
+## Crush
+
+This repo vendors `crush` as a git submodule at `crush/`.
+
+Install it with:
+
+```bash
+bash ~/code/dotfiles/install/crush.sh
+```
+
+The installer:
+
+- uses the bundled `crush/` source tree
+- initializes the submodule automatically when git is available
+- builds `crush` with Go into `~/tools/crush/bin/crush`
+- creates a symlink at `~/code/dotfiles/bin/crush`
 
 ## Monitoring stack
 
