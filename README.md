@@ -27,12 +27,12 @@ Inspired by https://github.com/ryanb/dotfiles.
 
 ## iTerm2 config
 
-- Tracked iTerm2 Dynamic Profile lives at `iterm2/DynamicProfiles/dotfiles.json`
-- Expected live path is `~/Library/Application Support/iTerm2/DynamicProfiles/dotfiles.json` (symlink)
-- The profile currently maps `Option + Left/Right` to `Esc+b` / `Esc+f` for shell word movement
-- Set or repair the symlink with: `bash ~/code/dotfiles/install/iterm2.sh`
+- Tracked iTerm2 settings live at `iterm2/settings/com.googlecode.iterm2.plist`
+- iTerm2 is configured to load settings from the custom folder `iterm2/settings`
+- GUI changes are written back to the repo folder when iTerm2 quits if `Save changes to folder when iTerm2 quits` is enabled
+- Set or repair the custom settings folder with: `bash ~/code/dotfiles/install/iterm2.sh`
 
-iTerm2 also supports loading all settings from a custom folder or URL in Settings > General > Settings. For dotfiles, using the local repo path is usually better than a raw GitHub URL because it works offline and changes can be committed normally.
+iTerm2 also supports loading settings from a URL, but using the local repo path is better for dotfiles because it works offline and GUI changes can be committed normally after iTerm2 writes them back to the settings folder.
 
 ## Quick Start (run via curl)
 

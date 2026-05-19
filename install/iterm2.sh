@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install/iterm2.sh - Point iTerm2 Dynamic Profiles to dotfiles managed config
+# install/iterm2.sh - Configure iTerm2 to load settings from this dotfiles repo
 
 if [[ -z "${BASH_VERSION:-}" ]]; then
     exec bash "$0" "$@"
@@ -11,13 +11,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 source "$SCRIPT_DIR/_common.sh"
 
-ITERM2_DYNAMIC_PROFILES_DIR="$HOME/Library/Application Support/iTerm2/DynamicProfiles"
-ITERM2_PROFILE_LINK="$ITERM2_DYNAMIC_PROFILES_DIR/dotfiles.json"
-ITERM2_PROFILE_TARGET="$DOTFILES_DIR/iterm2/DynamicProfiles/dotfiles.json"
+ITERM2_SETTINGS_DIR="$DOTFILES_DIR/iterm2/settings"
+ITERM2_SETTINGS_PLIST="$ITERM2_SETTINGS_DIR/com.googlecode.iterm2.plist"
+ITERM2_LOCAL_PLIST="$HOME/Library/Preferences/com.googlecode.iterm2.plist"
+ITERM2_OLD_DYNAMIC_PROFILE_LINK="$HOME/Library/Application Support/iTerm2/DynamicProfiles/dotfiles.json"
+ITERM2_OLD_DYNAMIC_PROFILE_TARGET="$DOTFILES_DIR/iterm2/DynamicProfiles/dotfiles.json"
 
 install_iterm2() {
     echo
-    info "=== iTerm2 Dynamic Profile Symlink Setup ==="
+    info "=== iTerm2 Custom Settings Folder Setup ==="
     echo
 
     if [[ "$(uname -s)" != "Darwin" ]]; then
@@ -25,32 +27,42 @@ install_iterm2() {
         return 0
     fi
 
-    if [[ ! -f "$ITERM2_PROFILE_TARGET" ]]; then
-        warn "iTerm2 profile target not found: $ITERM2_PROFILE_TARGET"
-        warn "Make sure dotfiles repo contains iterm2/DynamicProfiles/dotfiles.json"
-        return 1
-    fi
+    mkdir -p "$ITERM2_SETTINGS_DIR"
 
-    mkdir -p "$ITERM2_DYNAMIC_PROFILES_DIR"
-
-    if [[ -L "$ITERM2_PROFILE_LINK" ]]; then
-        local current_target
-        current_target="$(readlink "$ITERM2_PROFILE_LINK")"
-        if [[ "$current_target" == "$ITERM2_PROFILE_TARGET" || "$ITERM2_PROFILE_LINK" -ef "$ITERM2_PROFILE_TARGET" ]]; then
-            success "iTerm2 dynamic profile symlink already points to dotfiles"
-            return 0
+    if [[ ! -f "$ITERM2_SETTINGS_PLIST" ]]; then
+        if [[ ! -f "$ITERM2_LOCAL_PLIST" ]]; then
+            warn "iTerm2 settings plist not found: $ITERM2_SETTINGS_PLIST"
+            warn "Open iTerm2 once or add the tracked settings plist, then rerun this installer"
+            return 1
         fi
-        info "Updating existing symlink target"
-    elif [[ -e "$ITERM2_PROFILE_LINK" ]]; then
-        local backup
-        backup="${ITERM2_PROFILE_LINK}.bak.$(date +%Y%m%d%H%M%S)"
-        cp "$ITERM2_PROFILE_LINK" "$backup"
-        warn "Backed up existing iTerm2 dynamic profile to $backup"
+
+        info "Initializing tracked iTerm2 settings from current local preferences"
+        cp "$ITERM2_LOCAL_PLIST" "$ITERM2_SETTINGS_PLIST"
+        plutil -convert xml1 "$ITERM2_SETTINGS_PLIST"
     fi
 
-    ln -sfn "$ITERM2_PROFILE_TARGET" "$ITERM2_PROFILE_LINK"
-    success "Linked $ITERM2_PROFILE_LINK -> $ITERM2_PROFILE_TARGET"
-    info "Restart iTerm2, then select the 'dotfiles' profile or set it as default."
+    plutil -lint "$ITERM2_SETTINGS_PLIST" >/dev/null
+
+    /usr/libexec/PlistBuddy -c "Set :LoadPrefsFromCustomFolder true" "$ITERM2_SETTINGS_PLIST" 2>/dev/null \
+        || /usr/libexec/PlistBuddy -c "Add :LoadPrefsFromCustomFolder bool true" "$ITERM2_SETTINGS_PLIST"
+    /usr/libexec/PlistBuddy -c "Set :PrefsCustomFolder $ITERM2_SETTINGS_DIR" "$ITERM2_SETTINGS_PLIST" 2>/dev/null \
+        || /usr/libexec/PlistBuddy -c "Add :PrefsCustomFolder string $ITERM2_SETTINGS_DIR" "$ITERM2_SETTINGS_PLIST"
+
+    if [[ -L "$ITERM2_OLD_DYNAMIC_PROFILE_LINK" ]]; then
+        local current_target
+        current_target="$(readlink "$ITERM2_OLD_DYNAMIC_PROFILE_LINK")"
+        if [[ "$current_target" == "$ITERM2_OLD_DYNAMIC_PROFILE_TARGET" || "$ITERM2_OLD_DYNAMIC_PROFILE_LINK" -ef "$ITERM2_OLD_DYNAMIC_PROFILE_TARGET" ]]; then
+            unlink "$ITERM2_OLD_DYNAMIC_PROFILE_LINK"
+            info "Removed old dotfiles-managed iTerm2 Dynamic Profile symlink"
+        fi
+    fi
+
+    defaults write com.googlecode.iterm2 LoadPrefsFromCustomFolder -bool true
+    defaults write com.googlecode.iterm2 PrefsCustomFolder -string "$ITERM2_SETTINGS_DIR"
+
+    success "Configured iTerm2 to load settings from $ITERM2_SETTINGS_DIR"
+    info "Restart iTerm2 so it reloads settings from the custom folder."
+    info "In iTerm2 Settings > General > Settings, keep 'Save changes to folder when iTerm2 quits' enabled."
 }
 
 if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
