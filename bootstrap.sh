@@ -573,6 +573,7 @@ print_summary() {
     echo "  bash $DOTFILES_DIR/install/gh.sh"
     echo "  bash $DOTFILES_DIR/install/ripgrep.sh"
     echo "  bash $DOTFILES_DIR/install/kitty.sh"
+    echo "  bash $DOTFILES_DIR/install/iterm2.sh"
     echo "  bash $DOTFILES_DIR/install/monitoring.sh"
     echo "  bash $DOTFILES_DIR/install/doris-thirdparty.sh"
     echo "  bash $DOTFILES_DIR/install/doris-workspace.sh"

@@ -2,7 +2,7 @@
 
 Personal development machine bootstrap and shell configuration.
 
-This repo now also includes kitty terminal config under `kitty/`, so terminal keybindings and related helper scripts are managed in one place.
+This repo now also includes terminal config under `kitty/` and `iterm2/`, so terminal keybindings and related helper scripts are managed in one place.
 
 Inspired by https://github.com/ryanb/dotfiles.
 
@@ -24,6 +24,15 @@ Inspired by https://github.com/ryanb/dotfiles.
 - Expected live path is `~/.config/kitty/kitty.conf` (symlink)
 - Some mappings call `bin/kitty-remote-fork` in this repo for pane split/fork behavior
 - Set or repair the symlink with: `bash ~/code/dotfiles/install/kitty.sh`
+
+## iTerm2 config
+
+- Tracked iTerm2 Dynamic Profile lives at `iterm2/DynamicProfiles/dotfiles.json`
+- Expected live path is `~/Library/Application Support/iTerm2/DynamicProfiles/dotfiles.json` (symlink)
+- The profile currently maps `Option + Left/Right` to `Esc+b` / `Esc+f` for shell word movement
+- Set or repair the symlink with: `bash ~/code/dotfiles/install/iterm2.sh`
+
+iTerm2 also supports loading all settings from a custom folder or URL in Settings > General > Settings. For dotfiles, using the local repo path is usually better than a raw GitHub URL because it works offline and changes can be committed normally.
 
 ## Quick Start (run via curl)
 
@@ -70,6 +79,7 @@ bash ~/code/dotfiles/install/gh.sh
 bash ~/code/dotfiles/install/ripgrep.sh
 bash ~/code/dotfiles/install/monitoring.sh
 bash ~/code/dotfiles/install/kitty.sh
+bash ~/code/dotfiles/install/iterm2.sh
 bash ~/code/dotfiles/install/doris-thirdparty.sh
 bash ~/code/dotfiles/install/doris-workspace.sh
 ```

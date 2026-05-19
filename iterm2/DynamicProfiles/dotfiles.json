@@ -1,0 +1,21 @@
+{
+  "Profiles": [
+    {
+      "Name": "dotfiles",
+      "Guid": "7D20C668-C1FB-4B55-90FE-3D1D67CF5CB89",
+      "Description": "Dotfiles-managed iTerm2 profile",
+      "Option Key Sends": 2,
+      "Right Option Key Sends": 2,
+      "Keyboard Map": {
+        "0xf702-0x280000": {
+          "Action": 10,
+          "Text": "b"
+        },
+        "0xf703-0x280000": {
+          "Action": 10,
+          "Text": "f"
+        }
+      }
+    }
+  ]
+}
