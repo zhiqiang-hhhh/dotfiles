@@ -12,26 +12,26 @@ Navigation (shell functions)
   tobe          same as cbe
 
 Runtime commands
-  doris-help    show this help
-  doris-ports   print FE/BE ports from workspace conf files
-  doris_ports   wrapper of doris-ports (shell function)
+  help-doris    show this help
+  ports-doris   print FE/BE ports from workspace conf files
+  ports_doris   wrapper of ports-doris (shell function)
   restart-fe    restart FE (default uses --daemon)
   restart-be    restart BE (default uses --daemon)
   restart_fe    wrapper of restart-fe (shell function)
   restart_be    wrapper of restart-be (shell function)
 
 Cluster management
-  doris-rebuild [-y|--yes]
+  rebuild-doris [-y|--yes]
       destroy and rebuild the local Doris cluster from scratch:
       stops FE/BE, wipes metadata & storage, restarts, registers BE
       -y / --yes  skip confirmation prompt
-      alias function: doris_rebuild
+      alias function: rebuild_doris
 
 SQL helpers
-  todoris [mysql args...]
+  client-doris [mysql args...]
       connect to FE query port with mysql -h 127.0.0.1 -P <query_port> -uroot
 
-  addbe [host] [heartbeat_port]
+  add-be [host] [heartbeat_port]
       run: ALTER SYSTEM ADD BACKEND "host:heartbeat_port";
       defaults: host=127.0.0.1, heartbeat_port from be.conf
       alias function: add_be

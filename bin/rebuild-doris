@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# doris-rebuild - Destroy and rebuild a local Doris cluster from scratch
+# rebuild-doris - Destroy and rebuild a local Doris cluster from scratch
 #
 # Stops FE and BE, wipes all metadata and storage, re-creates the workspace
 # directory layout, then starts FE, waits for it to be ready, starts BE, and
@@ -127,7 +127,7 @@ wait_fe_ready() {
     info "Waiting for FE to be ready (timeout ${max_wait}s) ..."
 
     while (( elapsed < max_wait )); do
-        if "$SCRIPT_DIR/todoris" -e "SELECT 1" &>/dev/null; then
+        if "$SCRIPT_DIR/client-doris" -e "SELECT 1" &>/dev/null; then
             success "FE is ready (took ${elapsed}s)"
             return 0
         fi
@@ -179,7 +179,7 @@ start_component fe
 if ! wait_fe_ready; then
     echo ""
     warn "FE is not ready yet. You can wait and manually run:"
-    warn "  addbe            # register BE after FE is up"
+    warn "  add-be           # register BE after FE is up"
     warn "  restart-be       # start BE"
     exit 1
 fi
@@ -190,7 +190,7 @@ sleep 3
 
 # Step 7: Register BE to cluster
 info "Registering BE node to cluster ..."
-"$SCRIPT_DIR/addbe"
+"$SCRIPT_DIR/add-be"
 
 success "=== Doris cluster rebuild complete ==="
-info "Use 'todoris' to connect, 'doris-ports' to check ports."
+info "Use 'client-doris' to connect, 'ports-doris' to check ports."

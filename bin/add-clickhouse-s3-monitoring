@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# monitoring-add-clickhouse-s3 - Provision a Grafana dashboard focused on the
+# add-clickhouse-s3-monitoring - Provision a Grafana dashboard focused on the
 # ClickHouse MinIO-backed S3 disk + local filesystem cache.
 #
-# Reuses the ClickHouse datasource created by monitoring-add-clickhouse and
+# Reuses the ClickHouse datasource created by add-clickhouse-monitoring and
 # queries system.* tables directly (no Prometheus dependency).
 
 set -euo pipefail
@@ -18,7 +18,7 @@ CLICKHOUSE_DATASOURCE_UID="${CLICKHOUSE_DATASOURCE_UID:-local-clickhouse}"
 
 if [[ ! -f "$GRAFANA_DATASOURCE_DIR/clickhouse.yml" ]]; then
     warn "ClickHouse Grafana datasource not found."
-    warn "Run monitoring-add-clickhouse first, then rerun this command."
+    warn "Run add-clickhouse-monitoring first, then rerun this command."
     exit 1
 fi
 
@@ -321,7 +321,7 @@ PY
 success "Prepared ClickHouse S3 & query performance dashboard: clickhouse-s3-perf"
 
 if monitoring_is_running grafana; then
-    info "Restart Grafana to load provisioning changes: monitoring-stop grafana && monitoring-start grafana"
+    info "Restart Grafana to load provisioning changes: stop-monitoring grafana && start-monitoring grafana"
 else
     info "Grafana is not running yet; the dashboard will load on next start"
 fi

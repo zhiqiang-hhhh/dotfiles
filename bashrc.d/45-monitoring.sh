@@ -28,26 +28,26 @@ cmonitoring() {
     cd "$HOME/workspace/monitoring" || return
 }
 
-monitoring_start() {
-    _run_dotfiles_bin monitoring-start "$@"
+start_monitoring() {
+    _run_dotfiles_bin start-monitoring "$@"
 }
 
-monitoring_stop() {
-    _run_dotfiles_bin monitoring-stop "$@"
+stop_monitoring() {
+    _run_dotfiles_bin stop-monitoring "$@"
 }
 
-monitoring_status() {
-    _run_dotfiles_bin monitoring-status "$@"
+status_monitoring() {
+    _run_dotfiles_bin status-monitoring "$@"
 }
 
-monitoring_add_doris() {
-    _run_dotfiles_bin monitoring-add-doris "$@"
+add_doris_monitoring() {
+    _run_dotfiles_bin add-doris-monitoring "$@"
 }
 
-monitoring_add_clickhouse() {
-    _run_dotfiles_bin monitoring-add-clickhouse "$@"
+add_clickhouse_monitoring() {
+    _run_dotfiles_bin add-clickhouse-monitoring "$@"
 }
 
-monitoring_add_clickhouse_s3() {
-    _run_dotfiles_bin monitoring-add-clickhouse-s3 "$@"
+add_clickhouse_s3_monitoring() {
+    _run_dotfiles_bin add-clickhouse-s3-monitoring "$@"
 }

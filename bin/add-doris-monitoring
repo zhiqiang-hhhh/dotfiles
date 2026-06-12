@@ -26,7 +26,7 @@ be_conf="$(doris_be_conf_path)"
 
 if [[ ! -f "$fe_conf" || ! -f "$be_conf" ]]; then
     warn "Doris workspace not found. Skip adding Doris monitoring."
-    warn "Prepare Doris first, then rerun: monitoring-add-doris"
+    warn "Prepare Doris first, then rerun: add-doris-monitoring"
     exit 1
 fi
 
@@ -42,7 +42,7 @@ curl -sf "http://${be_target}/metrics" >/dev/null 2>&1 && be_ok=1
 
 if [[ "$fe_ok" -eq 0 && "$be_ok" -eq 0 ]]; then
     warn "Doris FE (${fe_target}) and BE (${be_target}) metrics endpoints are both unreachable."
-    warn "Start Doris cluster first, then rerun: monitoring-add-doris"
+    warn "Start Doris cluster first, then rerun: add-doris-monitoring"
     exit 1
 fi
 

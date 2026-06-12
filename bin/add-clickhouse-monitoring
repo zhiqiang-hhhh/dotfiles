@@ -54,7 +54,7 @@ detect_clickhouse_node() {
 detected="$(detect_clickhouse_node || true)"
 if [[ -z "$detected" ]]; then
     warn "ClickHouse workspace config was not found under $(clickhouse_workspace_dir)/conf"
-    warn "Prepare ClickHouse first, then rerun: monitoring-add-clickhouse"
+    warn "Prepare ClickHouse first, then rerun: add-clickhouse-monitoring"
     exit 1
 fi
 
@@ -209,7 +209,7 @@ success "Configured Grafana ClickHouse datasource: ${CLICKHOUSE_DATASOURCE_NAME}
 success "Prepared ClickHouse Grafana dashboard"
 
 if monitoring_is_running grafana; then
-    info "Restart Grafana to load provisioning changes: monitoring-stop grafana && monitoring-start grafana"
+    info "Restart Grafana to load provisioning changes: stop-monitoring grafana && start-monitoring grafana"
 else
     info "Grafana is not running yet; ClickHouse provisioning will load on next start"
 fi

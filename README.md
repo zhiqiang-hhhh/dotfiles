@@ -118,12 +118,12 @@ You can change ports in `~/workspace/monitoring/monitoring.conf` and rerun the i
 
 ### Monitoring commands
 
-- `monitoring-start` - start all components
-- `monitoring-stop` - stop all components
-- `monitoring-status` - show component status
-- `monitoring-add-doris` - retry Doris monitoring discovery and config update
-- `monitoring-add-clickhouse` - retry ClickHouse Grafana datasource and dashboard provisioning
-- `monitoring-add-clickhouse-s3` - provision the ClickHouse S3 disk (MinIO) dashboard
+- `start-monitoring` - start all components
+- `stop-monitoring` - stop all components
+- `status-monitoring` - show component status
+- `add-doris-monitoring` - retry Doris monitoring discovery and config update
+- `add-clickhouse-monitoring` - retry ClickHouse Grafana datasource and dashboard provisioning
+- `add-clickhouse-s3-monitoring` - provision the ClickHouse S3 disk (MinIO) dashboard
 - `cmonitoring` - `cd ~/workspace/monitoring`
 
 ### Doris monitoring behavior
@@ -137,7 +137,7 @@ Behavior is idempotent:
 
 - if Doris is not configured, no Doris scrape job is added
 - if Doris exists but only FE or BE is reachable, only the reachable target is added
-- if Doris starts later, rerun `monitoring-add-doris`
+- if Doris starts later, rerun `add-doris-monitoring`
 - rerunning the installer is safe and will reconcile the monitoring config
 
 Grafana provisioning includes:
@@ -169,8 +169,8 @@ Useful overrides:
 If ClickHouse starts later, rerun:
 
 ```bash
-monitoring-add-clickhouse
-monitoring-stop grafana && monitoring-start grafana
+add-clickhouse-monitoring
+stop-monitoring grafana && start-monitoring grafana
 ```
 
 ## Doris workspace runtime layout
@@ -199,20 +199,21 @@ After reloading shell, these helpers are available:
   - `cfe` - `cd ~/workspace/doris/fe`
   - `cbe` - `cd ~/workspace/doris/be`
   - `tobe` - alias behavior, also `cd ~/workspace/doris/be`
-  - `doris_ports` - wrapper for `bin/doris-ports`
-  - `doris_help` - wrapper for `bin/doris-help`
-  - `todoris` - wrapper for `bin/todoris`
-  - `addbe` / `add_be` - wrapper for `bin/addbe`
+  - `ports_doris` - wrapper for `bin/ports-doris`
+  - `help_doris` - wrapper for `bin/help-doris`
+  - `client_doris` - wrapper for `bin/client-doris`
+  - `add_be` - wrapper for `bin/add-be`
   - `restart_fe` - wrapper for `bin/restart-fe`
   - `restart_be` - wrapper for `bin/restart-be`
+  - `rebuild_doris` - wrapper for `bin/rebuild-doris`
 - Executables in `bin/`:
-  - `doris-help` - show Doris shortcut usage
-  - `doris-ports` - read and print FE/BE ports from `~/workspace/doris/{fe,be}/conf`
+  - `help-doris` - show Doris shortcut usage
+  - `ports-doris` - read and print FE/BE ports from `~/workspace/doris/{fe,be}/conf`
   - `restart-fe` - restart FE (`stop_fe.sh` then `start_fe.sh --daemon` by default)
   - `restart-be` - restart BE (`stop_be.sh` then `start_be.sh --daemon` by default)
-  - `todoris` - connect to Doris FE query port with mysql client:
+  - `client-doris` - connect to Doris FE query port with mysql client:
   - `mysql -h 127.0.0.1 -P <query_port_from_fe.conf> -uroot`
-  - `addbe [host] [heartbeat_port]` - run `ALTER SYSTEM ADD BACKEND` via FE query port
+  - `add-be [host] [heartbeat_port]` - run `ALTER SYSTEM ADD BACKEND` via FE query port
     - defaults: `host=127.0.0.1`, `heartbeat_port` from `be.conf`
 
 ## ClickHouse workspace runtime layout
@@ -337,12 +338,12 @@ SETTINGS storage_policy = 'minio_s3_cache_policy';
 ### S3 disk dashboard
 
 ```bash
-monitoring-add-clickhouse        # one-time: datasource + base dashboard
-monitoring-add-clickhouse-s3     # S3 disk dashboard
-monitoring-stop grafana && monitoring-start grafana
+add-clickhouse-monitoring        # one-time: datasource + base dashboard
+add-clickhouse-s3-monitoring     # S3 disk dashboard
+stop-monitoring grafana && start-monitoring grafana
 ```
 
-`monitoring-add-clickhouse-s3` provisions **two** dashboards (both query
+`add-clickhouse-s3-monitoring` provisions **two** dashboards (both query
 `system.*` directly through the ClickHouse Grafana datasource, no Prometheus):
 
 - **ClickHouse S3 Disk (MinIO)** (`/d/clickhouse-s3-disk`) — storage view: cache

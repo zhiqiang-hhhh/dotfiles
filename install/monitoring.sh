@@ -384,21 +384,21 @@ install_monitoring() {
         "node-exporter-full" \
         "Node Exporter Full" || warn "Failed to download Node Exporter dashboard; you can import Grafana ID 1860 manually"
 
-    if "$HOME/code/dotfiles/bin/monitoring-add-doris"; then
+    if "$HOME/code/dotfiles/bin/add-doris-monitoring"; then
         success "Doris monitoring configured"
     else
         warn "Doris cluster was not detected; Doris monitoring not added"
-        warn "After Doris is ready, run: monitoring-add-doris"
+        warn "After Doris is ready, run: add-doris-monitoring"
     fi
 
-    if "$HOME/code/dotfiles/bin/monitoring-add-clickhouse"; then
+    if "$HOME/code/dotfiles/bin/add-clickhouse-monitoring"; then
         success "ClickHouse monitoring configured"
     else
         warn "ClickHouse was not detected; ClickHouse monitoring not added"
-        warn "After ClickHouse is ready, run: monitoring-add-clickhouse"
+        warn "After ClickHouse is ready, run: add-clickhouse-monitoring"
     fi
 
-    "$HOME/code/dotfiles/bin/monitoring-start"
+    "$HOME/code/dotfiles/bin/start-monitoring"
 
     info "Monitoring stack is ready"
     info "Grafana:    http://127.0.0.1:${grafana_port}"

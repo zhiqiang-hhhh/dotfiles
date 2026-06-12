@@ -11,7 +11,7 @@ query_port="$(doris_conf_get "$fe_conf" "query_port" "9030")"
 if command -v mysql &>/dev/null; then
     mysql -h 127.0.0.1 -P "$query_port" -uroot "$@"
 else
-    echo "todoris: mysql client not found"
+    echo "client-doris: mysql client not found"
     echo "run: mysql -h 127.0.0.1 -P $query_port -uroot"
     exit 1
 fi

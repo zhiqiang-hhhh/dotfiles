@@ -38,24 +38,20 @@ tobe() {
     cd "$HOME/workspace/doris/be" || return
 }
 
-doris_ports() {
-    _run_dotfiles_bin doris-ports "$@"
+ports_doris() {
+    _run_dotfiles_bin ports-doris "$@"
 }
 
-todoris() {
-    _run_dotfiles_bin todoris "$@"
-}
-
-addbe() {
-    _run_dotfiles_bin addbe "$@"
+client_doris() {
+    _run_dotfiles_bin client-doris "$@"
 }
 
 add_be() {
-    addbe "$@"
+    _run_dotfiles_bin add-be "$@"
 }
 
-doris_help() {
-    _run_dotfiles_bin doris-help "$@"
+help_doris() {
+    _run_dotfiles_bin help-doris "$@"
 }
 
 restart_fe() {
@@ -66,6 +62,6 @@ restart_be() {
     _run_dotfiles_bin restart-be "$@"
 }
 
-doris_rebuild() {
-    _run_dotfiles_bin doris-rebuild "$@"
+rebuild_doris() {
+    _run_dotfiles_bin rebuild-doris "$@"
 }

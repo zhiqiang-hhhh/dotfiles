@@ -15,7 +15,7 @@ sql="ALTER SYSTEM ADD BACKEND \"${host}:${heartbeat_port}\";"
 if command -v mysql &>/dev/null; then
     mysql -h 127.0.0.1 -P "$query_port" -uroot -e "$sql"
 else
-    echo "addbe: mysql client not found"
+    echo "add-be: mysql client not found"
     echo "run manually: mysql -h 127.0.0.1 -P $query_port -uroot -e '$sql'"
     exit 1
 fi
