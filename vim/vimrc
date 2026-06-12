@@ -1,0 +1,49 @@
+" ~/.vimrc - managed by dotfiles (https://github.com/zhiqiang-hhhh/dotfiles)
+" Symlinked from vim/vimrc by install/vim.sh. Do not edit ~/.vimrc directly.
+
+set nocompatible
+syntax on
+filetype plugin indent on
+
+" ---- sensible general defaults ----
+set number
+set hidden
+set incsearch
+set hlsearch
+set ignorecase
+set smartcase
+set backspace=indent,eol,start
+set laststatus=2
+set wildmenu
+
+" ---- default indentation: 4 spaces ----
+set expandtab
+set shiftwidth=4
+set tabstop=4
+set softtabstop=4
+set autoindent
+
+" jump between matching open/close tags with %
+packadd! matchit
+
+" ---- copying without the line-number gutter ----
+" vim has +clipboard, so copy via vim itself instead of terminal mouse + Cmd+C
+" (terminal selection drags the number gutter along; vim's never does).
+"   visual-select, then <leader>y  -> copies selection to the macOS clipboard
+vnoremap <leader>y "+y
+
+" ============================================================
+" XML editing
+"   gg=G        reformat the whole file
+"   =           reformat the current/selected lines
+"   <leader>x   reformat the whole file, keep cursor in place
+" Formatting is done by bin/xmlfmt (xmllint --format, 4-space indent).
+" ============================================================
+augroup dotfiles_xml
+    autocmd!
+    autocmd FileType xml,xsd,svg,xhtml setlocal shiftwidth=4 tabstop=4 softtabstop=4 expandtab
+    autocmd FileType xml,xsd,svg,xhtml let &l:equalprg = expand('~/code/dotfiles/bin/xmlfmt')
+    " fold big configs by indentation, but start fully unfolded
+    autocmd FileType xml,xsd,svg setlocal foldmethod=indent foldlevelstart=99 foldlevel=99
+    autocmd FileType xml,xsd,svg,xhtml nnoremap <buffer> <leader>x mzgg=G`z
+augroup END

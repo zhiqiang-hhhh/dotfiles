@@ -37,6 +37,14 @@ ZooKeeper, MinIO, monitoring, Doris).
 
 iTerm2 also supports loading settings from a URL, but using the local repo path is better for dotfiles because it works offline and GUI changes can be committed normally after iTerm2 writes them back to the settings folder.
 
+## Vim config
+
+- Tracked vimrc lives at `vim/vimrc`, symlinked to `~/.vimrc`
+- Link or repair it with: `bash ~/code/dotfiles/install/vim.sh`
+- XML editing: open a `.xml` file and run `gg=G` (whole file) or `<leader>x` to
+  reformat. Formatting is done by `bin/xmlfmt` (`xmllint --format`, 4-space
+  indent, no injected `<?xml?>` line); `%` jumps between matching tags.
+
 ## Quick Start (run via curl)
 
 You can run the bootstrap script directly from GitHub:

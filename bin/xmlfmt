@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+#
+# xmlfmt - Pretty-print XML read from stdin to stdout.
+#
+#   * 4-space indent (override with XMLLINT_INDENT)
+#   * drops the "<?xml ...?>" declaration line that xmllint prepends
+#   * on parse error, prints the ORIGINAL input unchanged (so editor filters
+#     such as vim's `equalprg`/`=` never blank the buffer) and reports the
+#     error on stderr
+#
+# Usage:
+#   xmlfmt < file.xml
+#   :%!xmlfmt          (inside vim)
+
+set -uo pipefail
+
+input="$(cat)"
+
+if formatted="$(printf '%s' "$input" | XMLLINT_INDENT="${XMLLINT_INDENT:-    }" xmllint --format - 2>&1)"; then
+    printf '%s\n' "$formatted" | sed '1{/^<?xml /d;}'
+else
+    printf 'xmlfmt: %s\n' "$formatted" >&2
+    printf '%s' "$input"
+    exit 1
+fi
