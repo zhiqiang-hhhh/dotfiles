@@ -5,6 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/_monitoring-common.sh"
 source "$SCRIPT_DIR/_doris-common.sh"
+source "$SCRIPT_DIR/_clickhouse-common.sh"
 
 print_status() {
     local component="$1"
@@ -54,4 +55,12 @@ if grep -q 'job_name: "doris_cluster"' "$prom_config" 2>/dev/null; then
 else
     printf '%-14s not configured\n' "doris_fe"
     printf '%-14s not configured\n' "doris_be"
+fi
+
+ch_datasource="$HOME/workspace/monitoring/grafana/provisioning/datasources/clickhouse.yml"
+if [[ -f "$ch_datasource" ]]; then
+    ch_port="$(grep -E '^[[:space:]]*port:' "$ch_datasource" | head -1 | sed -E 's/^[^:]+:[[:space:]]*//')"
+    printf '%-14s configured  http://127.0.0.1:%s\n' "clickhouse" "${ch_port:-unknown}"
+else
+    printf '%-14s not configured\n' "clickhouse"
 fi

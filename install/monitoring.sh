@@ -16,6 +16,7 @@ fi
 PROMETHEUS_VERSION="${PROMETHEUS_VERSION:-2.53.3}"
 GRAFANA_VERSION="${GRAFANA_VERSION:-11.4.0}"
 NODE_EXPORTER_VERSION="${NODE_EXPORTER_VERSION:-1.8.2}"
+GRAFANA_CLICKHOUSE_PLUGIN_ID="${GRAFANA_CLICKHOUSE_PLUGIN_ID:-grafana-clickhouse-datasource}"
 
 MONITORING_TOOLS_DIR="$HOME/tools/monitoring"
 MONITORING_WORKSPACE_DIR="$HOME/workspace/monitoring"
@@ -214,6 +215,35 @@ _install_bundled_dashboards() {
     fi
 }
 
+_install_grafana_clickhouse_plugin() {
+    local grafana_target="$MONITORING_TOOLS_DIR/grafana"
+    local plugins_dir="$MONITORING_WORKSPACE_DIR/grafana/data/plugins"
+
+    mkdir -p "$plugins_dir"
+
+    if [[ -d "$plugins_dir/$GRAFANA_CLICKHOUSE_PLUGIN_ID" ]]; then
+        success "Grafana ClickHouse datasource plugin already installed"
+        return 0
+    fi
+
+    if [[ ! -x "$grafana_target/bin/grafana" ]]; then
+        warn "Grafana binary missing; cannot install ClickHouse datasource plugin"
+        return 1
+    fi
+
+    info "Installing Grafana ClickHouse datasource plugin ..."
+    if "$grafana_target/bin/grafana" cli \
+        --pluginsDir "$plugins_dir" \
+        plugins install "$GRAFANA_CLICKHOUSE_PLUGIN_ID"; then
+        success "Installed Grafana ClickHouse datasource plugin"
+        return 0
+    fi
+
+    warn "Failed to install Grafana ClickHouse datasource plugin"
+    warn "You can retry later: $grafana_target/bin/grafana cli --pluginsDir $plugins_dir plugins install $GRAFANA_CLICKHOUSE_PLUGIN_ID"
+    return 1
+}
+
 _download_dashboard_if_missing() {
     local url="$1"
     local output="$2"
@@ -345,6 +375,7 @@ install_monitoring() {
 
     _render_prometheus_config "$prom_port" "$ne_port"
     _render_grafana_config "$grafana_port" "$prom_port" "$grafana_user" "$grafana_password"
+    _install_grafana_clickhouse_plugin || true
     _install_bundled_dashboards
 
     _download_dashboard_if_missing \
@@ -358,6 +389,13 @@ install_monitoring() {
     else
         warn "Doris cluster was not detected; Doris monitoring not added"
         warn "After Doris is ready, run: monitoring-add-doris"
+    fi
+
+    if "$HOME/code/dotfiles/bin/monitoring-add-clickhouse"; then
+        success "ClickHouse monitoring configured"
+    else
+        warn "ClickHouse was not detected; ClickHouse monitoring not added"
+        warn "After ClickHouse is ready, run: monitoring-add-clickhouse"
     fi
 
     "$HOME/code/dotfiles/bin/monitoring-start"

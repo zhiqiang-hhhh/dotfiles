@@ -1,0 +1,215 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_monitoring-common.sh"
+source "$SCRIPT_DIR/_clickhouse-common.sh"
+
+GRAFANA_DATASOURCE_DIR="$HOME/workspace/monitoring/grafana/provisioning/datasources"
+GRAFANA_DASHBOARD_DIR="$HOME/workspace/monitoring/grafana/provisioning/dashboards/json"
+CLICKHOUSE_DATASOURCE_UID="${CLICKHOUSE_DATASOURCE_UID:-local-clickhouse}"
+CLICKHOUSE_DATASOURCE_NAME="${CLICKHOUSE_DATASOURCE_NAME:-ClickHouse Local}"
+CLICKHOUSE_GRAFANA_USER="${CLICKHOUSE_GRAFANA_USER:-default}"
+CLICKHOUSE_GRAFANA_PASSWORD="${CLICKHOUSE_GRAFANA_PASSWORD:-}"
+CLICKHOUSE_GRAFANA_DATABASE="${CLICKHOUSE_GRAFANA_DATABASE:-default}"
+
+yaml_quote() {
+    local value="$1"
+    value="${value//\'/\'\'}"
+    printf "'%s'" "$value"
+}
+
+detect_clickhouse_node() {
+    local node conf port target
+
+    for node in node1 single node2; do
+        conf="$(clickhouse_config_path "$node" 2>/dev/null || true)"
+        [[ -f "$conf" ]] || continue
+
+        port="$(clickhouse_config_get "$conf" http_port "")"
+        [[ -n "$port" ]] || continue
+
+        target="127.0.0.1:${port}"
+        if curl -sf "http://${target}/ping" >/dev/null 2>&1; then
+            printf '%s\t%s\t%s\n' "$node" "$conf" "$port"
+            return 0
+        fi
+    done
+
+    for node in node1 single node2; do
+        conf="$(clickhouse_config_path "$node" 2>/dev/null || true)"
+        [[ -f "$conf" ]] || continue
+
+        port="$(clickhouse_config_get "$conf" http_port "")"
+        [[ -n "$port" ]] || continue
+
+        printf '%s\t%s\t%s\n' "$node" "$conf" "$port"
+        return 0
+    done
+
+    return 1
+}
+
+detected="$(detect_clickhouse_node || true)"
+if [[ -z "$detected" ]]; then
+    warn "ClickHouse workspace config was not found under $(clickhouse_workspace_dir)/conf"
+    warn "Prepare ClickHouse first, then rerun: monitoring-add-clickhouse"
+    exit 1
+fi
+
+IFS=$'\t' read -r node conf_file http_port <<< "$detected"
+
+mkdir -p "$GRAFANA_DATASOURCE_DIR" "$GRAFANA_DASHBOARD_DIR"
+
+datasource_name="$(yaml_quote "$CLICKHOUSE_DATASOURCE_NAME")"
+datasource_uid="$(yaml_quote "$CLICKHOUSE_DATASOURCE_UID")"
+datasource_user="$(yaml_quote "$CLICKHOUSE_GRAFANA_USER")"
+datasource_password="$(yaml_quote "$CLICKHOUSE_GRAFANA_PASSWORD")"
+datasource_database="$(yaml_quote "$CLICKHOUSE_GRAFANA_DATABASE")"
+
+cat > "$GRAFANA_DATASOURCE_DIR/clickhouse.yml" <<EOF
+apiVersion: 1
+
+datasources:
+  - name: ${datasource_name}
+    uid: ${datasource_uid}
+    type: grafana-clickhouse-datasource
+    access: proxy
+    isDefault: false
+    editable: true
+    jsonData:
+      server: 127.0.0.1
+      port: ${http_port}
+      protocol: http
+      username: ${datasource_user}
+      defaultDatabase: ${datasource_database}
+      tlsSkipVerify: true
+      dialTimeout: 10
+      queryTimeout: 60
+    secureJsonData:
+      password: ${datasource_password}
+EOF
+
+python3 - "$GRAFANA_DASHBOARD_DIR/clickhouse-local-overview.json" "$CLICKHOUSE_DATASOURCE_UID" <<'PY'
+import json
+import pathlib
+import sys
+
+dst = pathlib.Path(sys.argv[1])
+ds_uid = sys.argv[2]
+datasource = {"type": "grafana-clickhouse-datasource", "uid": ds_uid}
+
+def target(raw_sql, ref_id="A", fmt=1):
+    return {
+        "datasource": datasource,
+        "format": fmt,
+        "rawSql": raw_sql,
+        "refId": ref_id,
+    }
+
+panels = [
+    {
+        "id": 1,
+        "type": "stat",
+        "title": "Running Queries",
+        "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+        "datasource": datasource,
+        "targets": [target("SELECT count() AS running_queries FROM system.processes")],
+        "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+        "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+    },
+    {
+        "id": 2,
+        "type": "stat",
+        "title": "Parts",
+        "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+        "datasource": datasource,
+        "targets": [target("SELECT count() AS active_parts FROM system.parts WHERE active")],
+        "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+        "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+    },
+    {
+        "id": 3,
+        "type": "stat",
+        "title": "Databases",
+        "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+        "datasource": datasource,
+        "targets": [target("SELECT count() AS databases FROM system.databases")],
+        "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+        "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+    },
+    {
+        "id": 4,
+        "type": "stat",
+        "title": "Tables",
+        "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+        "datasource": datasource,
+        "targets": [target("SELECT count() AS tables FROM system.tables WHERE database NOT IN ('system', 'INFORMATION_SCHEMA', 'information_schema')")],
+        "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+        "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+    },
+    {
+        "id": 5,
+        "type": "timeseries",
+        "title": "Selected Metrics",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+        "datasource": datasource,
+        "targets": [target("SELECT now() AS time, metric, toFloat64(value) AS value FROM system.metrics WHERE metric IN ('MemoryTracking', 'Query', 'ReadonlyReplica', 'ReplicatedSend')")],
+        "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+        "options": {"legend": {"displayMode": "table", "placement": "bottom"}},
+    },
+    {
+        "id": 6,
+        "type": "timeseries",
+        "title": "Asynchronous Metrics",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+        "datasource": datasource,
+        "targets": [target("SELECT now() AS time, metric, toFloat64(value) AS value FROM system.asynchronous_metrics WHERE metric IN ('Uptime', 'MemoryResident', 'MemoryVirtual', 'NumberOfDatabases', 'NumberOfTables')")],
+        "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+        "options": {"legend": {"displayMode": "table", "placement": "bottom"}},
+    },
+    {
+        "id": 7,
+        "type": "table",
+        "title": "Largest Active Parts",
+        "gridPos": {"h": 9, "w": 12, "x": 0, "y": 13},
+        "datasource": datasource,
+        "targets": [target("SELECT database, table, count() AS parts, formatReadableSize(sum(bytes_on_disk)) AS size FROM system.parts WHERE active GROUP BY database, table ORDER BY sum(bytes_on_disk) DESC LIMIT 20", fmt=0)],
+        "fieldConfig": {"defaults": {}, "overrides": []},
+    },
+    {
+        "id": 8,
+        "type": "table",
+        "title": "Recent Queries",
+        "gridPos": {"h": 9, "w": 12, "x": 12, "y": 13},
+        "datasource": datasource,
+        "targets": [target("SELECT event_time, query_duration_ms, read_rows, result_rows, initial_user, left(query, 160) AS query FROM system.query_log WHERE type = 'QueryFinish' ORDER BY event_time DESC LIMIT 20", fmt=0)],
+        "fieldConfig": {"defaults": {}, "overrides": []},
+    },
+]
+
+dashboard = {
+    "id": None,
+    "uid": "clickhouse-local-overview",
+    "title": "ClickHouse Local Overview",
+    "tags": ["clickhouse", "local"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "10s",
+    "time": {"from": "now-30m", "to": "now"},
+    "panels": panels,
+}
+
+dst.write_text(json.dumps(dashboard, indent=2))
+PY
+
+success "Configured Grafana ClickHouse datasource: ${CLICKHOUSE_DATASOURCE_NAME} -> http://127.0.0.1:${http_port} (${node})"
+success "Prepared ClickHouse Grafana dashboard"
+
+if monitoring_is_running grafana; then
+    info "Restart Grafana to load provisioning changes: monitoring-stop grafana && monitoring-start grafana"
+else
+    info "Grafana is not running yet; ClickHouse provisioning will load on next start"
+fi
