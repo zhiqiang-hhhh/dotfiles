@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+#
+# configure-ch-s3-minio [single|node1|node2|all ...]
+#
+# Point one or more local ClickHouse nodes at the local MinIO instance as an
+# S3-backed disk, fronted by a local filesystem cache. Each node gets its own
+# object-storage prefix (s3://<bucket>/<node>/) so they never collide.
+#
+# This REPLACES the existing <storage_configuration> block in each config
+# (backing the file up first) with:
+#   disks:    default, minio_s3 (s3 -> MinIO), minio_s3_cache (10Gi cache)
+#   policies: default, minio_s3_cache_policy
+#
+# After running, restart the affected nodes:  restart-ch <node>
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_clickhouse-common.sh"
+source "$SCRIPT_DIR/_minio-common.sh"
+
+CH_S3_CACHE_SIZE="${CH_S3_CACHE_SIZE:-10Gi}"
+
+endpoint_base="$(minio_endpoint)"
+bucket="$(minio_bucket)"
+access_key="$(minio_root_user)"
+secret_key="$(minio_root_password)"
+
+if [[ ! -f "$(minio_conf_path)" ]]; then
+    warn "MinIO config not found: $(minio_conf_path)"
+    warn "Deploy MinIO first: deploy-minio"
+    exit 1
+fi
+
+nodes="$(clickhouse_nodes_from_args "$@")"
+
+for node in $nodes; do
+    conf_file="$(clickhouse_config_path "$node")"
+    if [[ ! -f "$conf_file" ]]; then
+        warn "Skipping $node: config not found ($conf_file)"
+        continue
+    fi
+
+    storage_path="$(clickhouse_config_get "$conf_file" path "")"
+    if [[ -z "$storage_path" ]]; then
+        warn "Skipping $node: could not read <path> from $conf_file"
+        continue
+    fi
+
+    # /…/storage/<node>/data/  ->  /…/storage/<node>
+    storage_base="$(dirname "${storage_path%/}")"
+    metadata_path="$storage_base/disks/minio_s3/"
+    cache_path="$storage_base/disks/minio_s3_cache/"
+    endpoint="${endpoint_base}/${bucket}/${node}/"
+
+    mkdir -p "$metadata_path" "$cache_path"
+
+    backup="${conf_file}.bak.$(date +%Y%m%d%H%M%S)"
+    cp "$conf_file" "$backup"
+
+    python3 - "$conf_file" "$endpoint" "$access_key" "$secret_key" \
+        "$metadata_path" "$cache_path" "$CH_S3_CACHE_SIZE" <<'PY'
+import re
+import sys
+
+conf_file, endpoint, access_key, secret_key, metadata_path, cache_path, cache_size = sys.argv[1:8]
+
+block = f"""    <storage_configuration>
+        <disks>
+            <default>
+                <keep_free_space_bytes>10737418240</keep_free_space_bytes>
+            </default>
+
+            <minio_s3>
+                <type>s3</type>
+                <endpoint>{endpoint}</endpoint>
+                <access_key_id>{access_key}</access_key_id>
+                <secret_access_key>{secret_key}</secret_access_key>
+                <region>us-east-1</region>
+                <skip_access_check>true</skip_access_check>
+                <metadata_path>{metadata_path}</metadata_path>
+            </minio_s3>
+
+            <minio_s3_cache>
+                <type>cache</type>
+                <disk>minio_s3</disk>
+                <path>{cache_path}</path>
+                <max_size>{cache_size}</max_size>
+            </minio_s3_cache>
+        </disks>
+
+        <policies>
+            <default>
+                <volumes>
+                    <local_volume>
+                        <disk>default</disk>
+                        <load_balancing>least_used</load_balancing>
+                    </local_volume>
+                </volumes>
+            </default>
+
+            <minio_s3_cache_policy>
+                <volumes>
+                    <main>
+                        <disk>minio_s3_cache</disk>
+                    </main>
+                </volumes>
+            </minio_s3_cache_policy>
+        </policies>
+    </storage_configuration>"""
+
+text = open(conf_file).read()
+pattern = re.compile(r"[ \t]*<storage_configuration>.*?</storage_configuration>", re.DOTALL)
+
+if pattern.search(text):
+    text = pattern.sub(block, text, count=1)
+else:
+    text = text.replace("</clickhouse>", block + "\n</clickhouse>", 1)
+
+open(conf_file, "w").write(text)
+PY
+
+    success "Configured $node -> ${endpoint}"
+    info "  cache: $cache_path (max ${CH_S3_CACHE_SIZE})"
+    info "  backup: $backup"
+done
+
+echo
+info "Storage policy available to tables: minio_s3_cache_policy"
+info "Restart affected nodes to apply, e.g.: restart-ch ${nodes//$'\n'/ }"

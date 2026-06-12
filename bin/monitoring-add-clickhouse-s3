@@ -1,0 +1,327 @@
+#!/usr/bin/env bash
+#
+# monitoring-add-clickhouse-s3 - Provision a Grafana dashboard focused on the
+# ClickHouse MinIO-backed S3 disk + local filesystem cache.
+#
+# Reuses the ClickHouse datasource created by monitoring-add-clickhouse and
+# queries system.* tables directly (no Prometheus dependency).
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_monitoring-common.sh"
+source "$SCRIPT_DIR/_clickhouse-common.sh"
+
+GRAFANA_DATASOURCE_DIR="$HOME/workspace/monitoring/grafana/provisioning/datasources"
+GRAFANA_DASHBOARD_DIR="$HOME/workspace/monitoring/grafana/provisioning/dashboards/json"
+CLICKHOUSE_DATASOURCE_UID="${CLICKHOUSE_DATASOURCE_UID:-local-clickhouse}"
+
+if [[ ! -f "$GRAFANA_DATASOURCE_DIR/clickhouse.yml" ]]; then
+    warn "ClickHouse Grafana datasource not found."
+    warn "Run monitoring-add-clickhouse first, then rerun this command."
+    exit 1
+fi
+
+mkdir -p "$GRAFANA_DASHBOARD_DIR"
+
+python3 - "$GRAFANA_DASHBOARD_DIR/clickhouse-s3-disk.json" "$CLICKHOUSE_DATASOURCE_UID" <<'PY'
+import json
+import pathlib
+import sys
+
+dst = pathlib.Path(sys.argv[1])
+ds_uid = sys.argv[2]
+datasource = {"type": "grafana-clickhouse-datasource", "uid": ds_uid}
+
+
+def target(raw_sql, ref_id="A", fmt=1):
+    return {
+        "datasource": datasource,
+        "format": fmt,
+        "rawSql": raw_sql,
+        "refId": ref_id,
+    }
+
+
+def stat(id_, title, sql, x, y, unit="short", w=6, h=5):
+    return {
+        "id": id_,
+        "type": "stat",
+        "title": title,
+        "gridPos": {"h": h, "w": w, "x": x, "y": y},
+        "datasource": datasource,
+        "targets": [target(sql)],
+        "fieldConfig": {"defaults": {"unit": unit}, "overrides": []},
+        "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+    }
+
+
+def table(id_, title, sql, x, y, w=12, h=9):
+    return {
+        "id": id_,
+        "type": "table",
+        "title": title,
+        "gridPos": {"h": h, "w": w, "x": x, "y": y},
+        "datasource": datasource,
+        "targets": [target(sql, fmt=0)],
+        "fieldConfig": {"defaults": {}, "overrides": []},
+    }
+
+
+def timeseries(id_, title, sql, x, y, w=12, h=8, unit="short"):
+    return {
+        "id": id_,
+        "type": "timeseries",
+        "title": title,
+        "gridPos": {"h": h, "w": w, "x": x, "y": y},
+        "datasource": datasource,
+        "targets": [target(sql)],
+        "fieldConfig": {"defaults": {"unit": unit}, "overrides": []},
+        "options": {"legend": {"displayMode": "table", "placement": "bottom"}},
+    }
+
+
+panels = [
+    stat(
+        1, "Cache Used",
+        "SELECT toFloat64(sum(size)) AS bytes FROM system.filesystem_cache "
+        "WHERE cache_name = 'minio_s3_cache'",
+        0, 0, unit="bytes",
+    ),
+    stat(
+        2, "Cache Limit",
+        "SELECT toFloat64(value) AS bytes FROM system.metrics "
+        "WHERE metric = 'FilesystemCacheSizeLimit'",
+        6, 0, unit="bytes",
+    ),
+    stat(
+        3, "Parts on S3 (bytes)",
+        "SELECT toFloat64(sum(bytes_on_disk)) AS bytes FROM system.parts "
+        "WHERE active AND disk_name IN ('minio_s3', 'minio_s3_cache')",
+        12, 0, unit="bytes",
+    ),
+    stat(
+        4, "Tables on MinIO policy",
+        "SELECT count() AS tables FROM system.tables "
+        "WHERE storage_policy = 'minio_s3_cache_policy'",
+        18, 0,
+    ),
+    table(
+        5, "MinIO Disks",
+        "SELECT name, type, path, "
+        "formatReadableSize(total_space) AS total, "
+        "formatReadableSize(free_space) AS free, "
+        "formatReadableSize(total_space - free_space) AS used, "
+        "formatReadableSize(keep_free_space) AS keep_free "
+        "FROM system.disks WHERE name LIKE '%minio%' ORDER BY name",
+        0, 5, w=24, h=6,
+    ),
+    timeseries(
+        6, "Filesystem Cache Size vs Limit",
+        "SELECT now() AS time, metric, toFloat64(value) AS value "
+        "FROM system.metrics "
+        "WHERE metric IN ('FilesystemCacheSize', 'FilesystemCacheSizeLimit')",
+        0, 11, unit="bytes",
+    ),
+    timeseries(
+        7, "S3 / Cache Current Metrics",
+        "SELECT now() AS time, metric, toFloat64(value) AS value "
+        "FROM system.metrics "
+        "WHERE metric IN ('S3Requests', 'FilesystemCacheElements', "
+        "'FilesystemCacheReadBuffers', 'CacheFileSegments', 'RemoteRead')",
+        12, 11,
+    ),
+    table(
+        8, "S3 & Cache Event Counters",
+        "SELECT event, value, description FROM system.events "
+        "WHERE event LIKE 'S3%' OR event LIKE 'DiskS3%' OR event LIKE '%RemoteFS%' "
+        "OR event LIKE 'ReadBufferFromS3%' OR event LIKE 'WriteBufferFromS3%' "
+        "OR event LIKE 'CachedReadBuffer%' OR event LIKE 'FilesystemCache%' "
+        "ORDER BY event",
+        0, 19, w=12, h=11,
+    ),
+    table(
+        9, "Tables Using MinIO Policy",
+        "SELECT database, table, "
+        "formatReadableSize(total_bytes) AS size, total_rows AS rows, engine "
+        "FROM system.tables WHERE storage_policy = 'minio_s3_cache_policy' "
+        "ORDER BY total_bytes DESC",
+        12, 19, w=12, h=11,
+    ),
+    table(
+        10, "Active Parts on MinIO Disks",
+        "SELECT database, table, disk_name, count() AS parts, "
+        "formatReadableSize(sum(bytes_on_disk)) AS size "
+        "FROM system.parts WHERE active AND disk_name IN ('minio_s3', 'minio_s3_cache') "
+        "GROUP BY database, table, disk_name ORDER BY sum(bytes_on_disk) DESC LIMIT 20",
+        0, 30, w=24, h=9,
+    ),
+]
+
+dashboard = {
+    "id": None,
+    "uid": "clickhouse-s3-disk",
+    "title": "ClickHouse S3 Disk (MinIO)",
+    "tags": ["clickhouse", "s3", "minio", "local"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "10s",
+    "time": {"from": "now-30m", "to": "now"},
+    "panels": panels,
+}
+
+dst.write_text(json.dumps(dashboard, indent=2))
+PY
+
+success "Prepared ClickHouse S3 disk dashboard: clickhouse-s3-disk"
+
+# --- Performance dashboard: queries/inserts + S3 request rates/latency/size ---
+# Time-series panels respect the dashboard time range via the ClickHouse plugin
+# macros $__timeFilter / $__timeInterval / $__dateFilter (verified for v4.x).
+#   - rates / gauges / averages / sizes  -> system.metric_log (1s ProfileEvent deltas)
+#   - query/insert duration percentiles  -> system.query_log (true per-query quantiles)
+#   - S3 latency percentiles             -> quantiles of per-second avg latency (proxy;
+#       ClickHouse has no per-request S3 latency on this version)
+python3 - "$GRAFANA_DASHBOARD_DIR/clickhouse-s3-perf.json" "$CLICKHOUSE_DATASOURCE_UID" <<'PY'
+import json
+import pathlib
+import sys
+
+dst = pathlib.Path(sys.argv[1])
+ds_uid = sys.argv[2]
+datasource = {"type": "grafana-clickhouse-datasource", "uid": ds_uid}
+
+# metric_log is collected every 1s; ProfileEvent_* columns are per-interval deltas,
+# so sum()=count over window and avg()=per-second rate.
+BUCKET = "$__timeInterval(event_time) AS t"
+MWHERE = "WHERE $__dateFilter(event_date) AND $__timeFilter(event_time)"
+
+
+def tgt(sql, fmt=1):
+    return {"datasource": datasource, "format": fmt, "rawSql": sql, "refId": "A"}
+
+
+def stat(id_, title, sql, x, y, w=6, h=4, unit="short"):
+    return {
+        "id": id_, "type": "stat", "title": title,
+        "gridPos": {"h": h, "w": w, "x": x, "y": y},
+        "datasource": datasource, "targets": [tgt(sql)],
+        "fieldConfig": {"defaults": {"unit": unit}, "overrides": []},
+        "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False}},
+    }
+
+
+def ts(id_, title, sql, x, y, w=12, h=8, unit="short"):
+    return {
+        "id": id_, "type": "timeseries", "title": title,
+        "gridPos": {"h": h, "w": w, "x": x, "y": y},
+        "datasource": datasource, "targets": [tgt(sql)],
+        "fieldConfig": {"defaults": {"unit": unit, "custom": {"fillOpacity": 10}}, "overrides": []},
+        "options": {"legend": {"displayMode": "table", "placement": "bottom",
+                               "calcs": ["mean", "max", "lastNotNull"]}},
+    }
+
+
+panels = [
+    # ---- (1) currently executing ----
+    stat(1, "Running Queries (now)",
+         "SELECT value FROM system.metrics WHERE metric = 'Query'", 0, 0, w=4),
+    stat(2, "Running Inserts (now)",
+         "SELECT count() FROM system.processes WHERE query_kind = 'Insert'", 4, 0, w=4),
+    stat(3, "S3 Requests In-Flight (now)",
+         "SELECT value FROM system.metrics WHERE metric = 'S3Requests'", 8, 0, w=4),
+    # ---- (2) completed totals over the window ----
+    stat(4, "Selects Completed (window)",
+         "SELECT sum(ProfileEvent_SelectQuery) FROM system.metric_log " + MWHERE, 12, 0, w=6),
+    stat(5, "Inserts Completed (window)",
+         "SELECT sum(ProfileEvent_InsertQuery) FROM system.metric_log " + MWHERE, 18, 0, w=6),
+
+    # ---- (1) running trend / (2) completion trend ----
+    ts(6, "Queries Running (trend)",
+       "SELECT " + BUCKET + ", avg(CurrentMetric_Query) AS running_queries "
+       "FROM system.metric_log " + MWHERE + " GROUP BY t ORDER BY t", 0, 4),
+    ts(7, "Completed per Interval (Selects vs Inserts)",
+       "SELECT " + BUCKET + ", sum(ProfileEvent_SelectQuery) AS selects, "
+       "sum(ProfileEvent_InsertQuery) AS inserts "
+       "FROM system.metric_log " + MWHERE + " GROUP BY t ORDER BY t", 12, 4),
+
+    # ---- (3) query / insert duration percentiles (query_log, true quantiles) ----
+    ts(8, "SELECT Duration ms (avg / p50 / p90 / p99)",
+       "SELECT " + BUCKET + ", avg(query_duration_ms) AS avg, "
+       "quantile(0.5)(query_duration_ms) AS p50, "
+       "quantile(0.9)(query_duration_ms) AS p90, "
+       "quantile(0.99)(query_duration_ms) AS p99 "
+       "FROM system.query_log WHERE $__dateFilter(event_date) AND $__timeFilter(event_time) "
+       "AND type = 'QueryFinish' AND query_kind = 'Select' GROUP BY t ORDER BY t",
+       0, 12, unit="ms"),
+    ts(9, "INSERT Duration ms (avg / p50 / p90 / p99)",
+       "SELECT " + BUCKET + ", avg(query_duration_ms) AS avg, "
+       "quantile(0.5)(query_duration_ms) AS p50, "
+       "quantile(0.9)(query_duration_ms) AS p90, "
+       "quantile(0.99)(query_duration_ms) AS p99 "
+       "FROM system.query_log WHERE $__dateFilter(event_date) AND $__timeFilter(event_time) "
+       "AND type = 'QueryFinish' AND query_kind = 'Insert' GROUP BY t ORDER BY t",
+       12, 12, unit="ms"),
+
+    # ---- (4) S3 request rate / in-flight / avg latency ----
+    ts(10, "S3 Requests In-Flight (trend)",
+       "SELECT " + BUCKET + ", avg(CurrentMetric_S3Requests) AS in_flight "
+       "FROM system.metric_log " + MWHERE + " GROUP BY t ORDER BY t", 0, 20, w=8),
+    ts(11, "S3 Request Rate req/s (read vs write)",
+       "SELECT " + BUCKET + ", avg(ProfileEvent_S3ReadRequestsCount) AS read_rps, "
+       "avg(ProfileEvent_S3WriteRequestsCount) AS write_rps "
+       "FROM system.metric_log " + MWHERE + " GROUP BY t ORDER BY t", 8, 20, w=8),
+    ts(12, "S3 Avg Latency ms/req (read vs write)",
+       "SELECT " + BUCKET + ", "
+       "sum(ProfileEvent_S3ReadMicroseconds) / nullIf(sum(ProfileEvent_S3ReadRequestsCount), 0) / 1000 AS read_ms, "
+       "sum(ProfileEvent_S3WriteMicroseconds) / nullIf(sum(ProfileEvent_S3WriteRequestsCount), 0) / 1000 AS write_ms "
+       "FROM system.metric_log " + MWHERE + " GROUP BY t ORDER BY t", 16, 20, w=8, unit="ms"),
+
+    # ---- (4) S3 latency percentiles (of per-second average latency) ----
+    ts(13, "S3 READ Latency ms - p50/p90/p99 of per-second avg",
+       "SELECT " + BUCKET + ", quantile(0.5)(ps) / 1000 AS p50, "
+       "quantile(0.9)(ps) / 1000 AS p90, quantile(0.99)(ps) / 1000 AS p99 FROM "
+       "(SELECT event_time, event_date, "
+       "ProfileEvent_S3ReadMicroseconds / ProfileEvent_S3ReadRequestsCount AS ps "
+       "FROM system.metric_log " + MWHERE + " AND ProfileEvent_S3ReadRequestsCount > 0) "
+       "GROUP BY t ORDER BY t", 0, 28, unit="ms"),
+    ts(14, "S3 WRITE Latency ms - p50/p90/p99 of per-second avg",
+       "SELECT " + BUCKET + ", quantile(0.5)(ps) / 1000 AS p50, "
+       "quantile(0.9)(ps) / 1000 AS p90, quantile(0.99)(ps) / 1000 AS p99 FROM "
+       "(SELECT event_time, event_date, "
+       "ProfileEvent_S3WriteMicroseconds / ProfileEvent_S3WriteRequestsCount AS ps "
+       "FROM system.metric_log " + MWHERE + " AND ProfileEvent_S3WriteRequestsCount > 0) "
+       "GROUP BY t ORDER BY t", 12, 28, unit="ms"),
+
+    # ---- (5) average request size ----
+    ts(15, "S3 Avg Request Size (read vs write)",
+       "SELECT " + BUCKET + ", "
+       "sum(ProfileEvent_ReadBufferFromS3Bytes) / nullIf(sum(ProfileEvent_S3ReadRequestsCount), 0) AS read_bytes, "
+       "sum(ProfileEvent_WriteBufferFromS3Bytes) / nullIf(sum(ProfileEvent_S3WriteRequestsCount), 0) AS write_bytes "
+       "FROM system.metric_log " + MWHERE + " GROUP BY t ORDER BY t", 0, 36, w=24, unit="bytes"),
+]
+
+dashboard = {
+    "id": None,
+    "uid": "clickhouse-s3-perf",
+    "title": "ClickHouse S3 & Query Performance",
+    "tags": ["clickhouse", "s3", "minio", "performance", "local"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "10s",
+    "time": {"from": "now-1h", "to": "now"},
+    "panels": panels,
+}
+
+dst.write_text(json.dumps(dashboard, indent=2))
+PY
+
+success "Prepared ClickHouse S3 & query performance dashboard: clickhouse-s3-perf"
+
+if monitoring_is_running grafana; then
+    info "Restart Grafana to load provisioning changes: monitoring-stop grafana && monitoring-start grafana"
+else
+    info "Grafana is not running yet; the dashboard will load on next start"
+fi

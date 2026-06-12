@@ -6,6 +6,9 @@ This repo now also includes terminal config under `kitty/` and `iterm2/`, so ter
 
 Inspired by https://github.com/ryanb/dotfiles.
 
+Run `dothelp` for an overview of every command this repo adds (ClickHouse,
+ZooKeeper, MinIO, monitoring, Doris).
+
 ## OpenCode project rules
 
 - Persistent project instructions live in `AGENTS.md`.
@@ -119,6 +122,8 @@ You can change ports in `~/workspace/monitoring/monitoring.conf` and rerun the i
 - `monitoring-stop` - stop all components
 - `monitoring-status` - show component status
 - `monitoring-add-doris` - retry Doris monitoring discovery and config update
+- `monitoring-add-clickhouse` - retry ClickHouse Grafana datasource and dashboard provisioning
+- `monitoring-add-clickhouse-s3` - provision the ClickHouse S3 disk (MinIO) dashboard
 - `cmonitoring` - `cd ~/workspace/monitoring`
 
 ### Doris monitoring behavior
@@ -139,6 +144,34 @@ Grafana provisioning includes:
 
 - Node Exporter dashboard: Grafana ID `1860`
 - Doris Overview dashboard: bundled custom dashboard source derived from Grafana ID `9734`, automatically adapted to the local Prometheus datasource UID and detected Doris targets when Doris monitoring is configured
+- ClickHouse datasource: `grafana-clickhouse-datasource`, pointed at the detected local ClickHouse HTTP port
+- ClickHouse Local Overview dashboard: direct queries against `system.*` tables through the ClickHouse Grafana datasource
+
+### ClickHouse monitoring behavior
+
+The installer automatically tries to add ClickHouse monitoring by checking:
+
+- `~/workspace/clickhouse/conf/node1.xml`
+- `~/workspace/clickhouse/conf/config.xml`
+- `~/workspace/clickhouse/conf/node2.xml`
+
+It reads the first available `http_port`, prefers a node that answers `/ping`,
+and provisions Grafana to query ClickHouse directly. It does not edit ClickHouse
+configs or require Prometheus metrics to be enabled in ClickHouse.
+
+Useful overrides:
+
+- `CLICKHOUSE_WORKSPACE=/path/to/clickhouse-workspace`
+- `CLICKHOUSE_GRAFANA_USER=default`
+- `CLICKHOUSE_GRAFANA_PASSWORD=...`
+- `CLICKHOUSE_GRAFANA_DATABASE=default`
+
+If ClickHouse starts later, rerun:
+
+```bash
+monitoring-add-clickhouse
+monitoring-stop grafana && monitoring-start grafana
+```
 
 ## Doris workspace runtime layout
 
@@ -238,3 +271,102 @@ After reloading shell, these helpers are available:
 
 When `node1.xml` or `node2.xml` exists, `start-ch` defaults to `all`.
 Use `start-ch single` to start `conf/config.xml`.
+
+## Local MinIO as a ClickHouse S3 disk
+
+Run a local MinIO instance and use it as the object-storage target for a
+ClickHouse `s3` disk, fronted by a local filesystem cache (10Gi by default).
+Uses official MinIO binaries — no brew, no sudo, no system package manager.
+
+### Install and run MinIO
+
+```bash
+bash ~/code/dotfiles/install/minio.sh   # or: deploy-minio
+start-minio
+status-minio
+```
+
+Layout:
+
+- binaries: `~/tools/minio/{minio,mc}`
+- data: `~/workspace/minio/data`
+- config: `~/workspace/minio/minio.conf`
+- mc client config dir: `~/workspace/minio/mc` (never touches `~/.mc`)
+
+Defaults (edit `~/workspace/minio/minio.conf`, then `restart-minio`):
+
+- S3 API port `19900`, Console port `19901` (chosen to avoid the local
+  ClickHouse ports `19001/19002/...`)
+- root user / password `minioadmin` / `minioadmin`
+- bucket `clickhouse` (created automatically on first start)
+
+MinIO commands (shell functions in `bashrc.d/46-minio.sh`, executables in `bin/`):
+
+- `deploy-minio` - download binaries and write config
+- `start-minio` / `stop-minio` / `restart-minio` / `status-minio`
+- `cminio` - `cd ~/workspace/minio`
+
+### Wire ClickHouse to MinIO
+
+```bash
+configure-ch-s3-minio all      # or: single | node1 | node2
+restart-ch all
+```
+
+`configure-ch-s3-minio` reads the MinIO endpoint, bucket, and credentials from
+`~/workspace/minio/minio.conf` and **replaces** the `<storage_configuration>`
+block in each selected ClickHouse config (backing the file up first as
+`*.bak.<timestamp>`). It provisions, per node:
+
+- disk `minio_s3` (`type=s3`) pointed at `s3://<bucket>/<node>/` so nodes never
+  collide on the same prefix
+- disk `minio_s3_cache` (`type=cache`, `max_size=10Gi`) under the node's
+  `storage/<node>/disks/minio_s3_cache/`
+- storage policy `minio_s3_cache_policy`
+- the `default` disk/policy are regenerated so local tables keep working
+
+Override the cache size with `CH_S3_CACHE_SIZE=20Gi configure-ch-s3-minio all`.
+
+Create a table on MinIO-backed storage:
+
+```sql
+CREATE TABLE t (id UInt64) ENGINE = MergeTree ORDER BY id
+SETTINGS storage_policy = 'minio_s3_cache_policy';
+```
+
+### S3 disk dashboard
+
+```bash
+monitoring-add-clickhouse        # one-time: datasource + base dashboard
+monitoring-add-clickhouse-s3     # S3 disk dashboard
+monitoring-stop grafana && monitoring-start grafana
+```
+
+`monitoring-add-clickhouse-s3` provisions **two** dashboards (both query
+`system.*` directly through the ClickHouse Grafana datasource, no Prometheus):
+
+- **ClickHouse S3 Disk (MinIO)** (`/d/clickhouse-s3-disk`) — storage view: cache
+  usage/capacity, MinIO disks, S3/cache event counters, filesystem-cache
+  metrics, tables on the MinIO policy, active parts per MinIO disk.
+- **ClickHouse S3 & Query Performance** (`/d/clickhouse-s3-perf`) — performance
+  view, time-series over the dashboard's time range:
+  1. running queries/inserts (now + trend)
+  2. completed selects/inserts per interval and over the window
+  3. SELECT/INSERT duration `avg / p50 / p90 / p99` (true per-query quantiles
+     from `system.query_log`)
+  4. S3 requests in-flight, read/write request rate, avg latency, and
+     `p50/p90/p99` of per-second average latency
+  5. S3 average read/write request size
+
+Data sources and one caveat on the percentiles:
+
+- Rates, gauges, averages and sizes come from `system.metric_log` (collected
+  every 1s; `ProfileEvent_*` columns are per-second deltas, so `sum()` = window
+  total and `avg()` = per-second rate).
+- Query/insert **duration** percentiles are true per-query quantiles from
+  `system.query_log`.
+- ClickHouse exposes no per-S3-request latency on this version (no
+  `blob_storage_log`/`latency_log`), so the S3 latency `p50/p90/p99` panels show
+  quantiles of the **per-second average** latency, not per-request tail latency.
+  S3 read/write are split by request **rate** (`S3ReadRequestsCount` vs
+  `S3WriteRequestsCount`); the in-flight gauge (`S3Requests`) is not split.

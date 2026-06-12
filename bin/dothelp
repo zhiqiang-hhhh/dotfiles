@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# dothelp - Overview of the commands this dotfiles repo provides.
+#
+# Lists the command families added by ~/code/dotfiles/bin and the matching
+# shell helpers from bashrc.d. For component-specific detail see `help-ch`
+# (ClickHouse) and `doris-help` (Doris).
+
+set -euo pipefail
+
+bold=$'\033[1m'; cyan=$'\033[36m'; green=$'\033[32m'; dim=$'\033[2m'; reset=$'\033[0m'
+
+hdr()  { printf '\n%s%s%s\n' "$bold$cyan" "$1" "$reset"; }
+row()  { printf '  %s%-26s%s %s\n' "$green" "$1" "$reset" "$2"; }
+note() { printf '  %s%s%s\n' "$dim" "$1" "$reset"; }
+
+printf '%sdotfiles commands%s  %s(~/code/dotfiles/bin, on PATH)%s\n' "$bold" "$reset" "$dim" "$reset"
+
+hdr "ClickHouse"
+row "deploy-ch"              "Prepare ~/workspace/clickhouse layout + link the built binary"
+row "start-ch [TARGET]"      "Start node(s); TARGET = all | node1 | node2 | single"
+row "stop-ch [--force] [T]"  "Stop node(s)"
+row "restart-ch [TARGET]"    "Restart node(s)"
+row "status-ch [TARGET]"     "Show node status (pid/http/tcp ports)"
+row "client-ch [NODE] ..."   "Open clickhouse-client against a node (default node1)"
+row "configure-ch-s3-minio"  "Point node(s) at local MinIO as an S3 disk + 10Gi cache"
+row "help-ch"                "ClickHouse-specific help"
+
+hdr "ZooKeeper"
+row "start-zk / stop-zk"     "Start / stop the local ZooKeeper used by ClickHouse cluster"
+row "restart-zk / status-zk" "Restart / show ZooKeeper status"
+
+hdr "MinIO (S3 backend for ClickHouse)"
+row "deploy-minio"           "Download MinIO + mc, write ~/workspace/minio config"
+row "start-minio"            "Start MinIO (api 19900 / console 19901); creates the bucket"
+row "stop-minio / restart-minio" "Stop / restart MinIO"
+row "status-minio"           "Show MinIO status (ports, bucket)"
+
+hdr "Monitoring (Prometheus + Grafana + node_exporter)"
+row "monitoring-start [C]"   "Start all components, or one: prometheus|grafana|node_exporter"
+row "monitoring-stop [C]"    "Stop all components, or one"
+row "monitoring-status"      "Show component + Doris/ClickHouse wiring status"
+row "monitoring-add-doris"   "Provision the Grafana Doris datasource + dashboard"
+row "monitoring-add-clickhouse"     "Provision the ClickHouse datasource + overview dashboard"
+row "monitoring-add-clickhouse-s3"  "Provision the S3-disk + S3/query-performance dashboards"
+
+hdr "Doris  (see doris-help for detail)"
+row "doris-help / doris-ports"  "Doris usage and port map"
+row "doris-rebuild / todoris"   "Rebuild Doris / jump to the Doris source tree"
+row "addbe / restart-be / restart-fe" "Add a BE / restart BE / restart FE"
+
+hdr "Misc"
+row "clang-format"           "clang-format wrapper using the ldb_018 toolchain"
+row "rssh / kitty-remote-fork" "Remote SSH helper / fork a kitty session over SSH"
+row "opencode-project"       "Open the current project in opencode"
+
+hdr "Shell shortcuts (bashrc.d, after sourcing your shell)"
+note "cch / czk / cminio / cmonitoring   -> cd into the matching ~/workspace dir"
+note "Underscore forms of most bin commands exist too, e.g. start_ch, deploy_minio,"
+note "configure_ch_s3_minio, monitoring_add_clickhouse_s3."
+
+printf '\n'

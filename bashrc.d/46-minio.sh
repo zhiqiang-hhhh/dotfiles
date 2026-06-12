@@ -1,4 +1,4 @@
-# bashrc.d/45-monitoring.sh - Monitoring stack helper functions
+# bashrc.d/46-minio.sh - Local MinIO helper functions
 
 if ! declare -f _run_dotfiles_bin &>/dev/null; then
     _dotfiles_bin() {
@@ -24,30 +24,26 @@ if ! declare -f _run_dotfiles_bin &>/dev/null; then
     }
 fi
 
-cmonitoring() {
-    cd "$HOME/workspace/monitoring" || return
+cminio() {
+    cd "$HOME/workspace/minio" || return
 }
 
-monitoring_start() {
-    _run_dotfiles_bin monitoring-start "$@"
+deploy_minio() {
+    _run_dotfiles_bin deploy-minio "$@"
 }
 
-monitoring_stop() {
-    _run_dotfiles_bin monitoring-stop "$@"
+start_minio() {
+    _run_dotfiles_bin start-minio "$@"
 }
 
-monitoring_status() {
-    _run_dotfiles_bin monitoring-status "$@"
+stop_minio() {
+    _run_dotfiles_bin stop-minio "$@"
 }
 
-monitoring_add_doris() {
-    _run_dotfiles_bin monitoring-add-doris "$@"
+restart_minio() {
+    _run_dotfiles_bin restart-minio "$@"
 }
 
-monitoring_add_clickhouse() {
-    _run_dotfiles_bin monitoring-add-clickhouse "$@"
-}
-
-monitoring_add_clickhouse_s3() {
-    _run_dotfiles_bin monitoring-add-clickhouse-s3 "$@"
+status_minio() {
+    _run_dotfiles_bin status-minio "$@"
 }

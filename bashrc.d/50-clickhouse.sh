@@ -70,6 +70,10 @@ client_ch() {
     _run_dotfiles_clickhouse_bin client-ch "$@"
 }
 
+configure_ch_s3_minio() {
+    _run_dotfiles_clickhouse_bin configure-ch-s3-minio "$@"
+}
+
 help_ch() {
     _run_dotfiles_clickhouse_bin help-ch "$@"
 }
