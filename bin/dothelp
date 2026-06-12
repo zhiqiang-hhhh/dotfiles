@@ -51,6 +51,7 @@ row "client-doris [args...]"    "Connect to FE with the mysql client"
 row "add-be / restart-be / restart-fe" "Register a BE / restart BE / restart FE"
 
 hdr "Misc"
+row "use-ldb [version]"      "List / switch the active ldb_toolchain version"
 row "xmlfmt < file.xml"      "Pretty-print XML (xmllint, 4-space); vim uses it for gg=G"
 row "clang-format"           "clang-format wrapper using the ldb_018 toolchain"
 row "rssh / kitty-remote-fork" "Remote SSH helper / fork a kitty session over SSH"

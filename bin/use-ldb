@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# use-ldb [version]
+#
+#   no args     list installed ldb_toolchain versions (current marked with *)
+#   <version>   switch the active version to <version> (must be installed)
+#
+# Switching just relinks ~/tools/ldb_toolchain/current, which PATH already
+# points through, so the change takes effect immediately in new commands.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_ldb-common.sh"
+
+usage() {
+    cat <<EOF
+Usage: use-ldb [version]
+  use-ldb            list installed versions (current marked *)
+  use-ldb <version>  switch the active version, e.g. use-ldb v0.25
+
+Install more versions with: bash ~/code/dotfiles/install/ldb_toolchain.sh [version]
+EOF
+}
+
+list_versions() {
+    local versions current
+    versions="$(ldb_installed_versions)"
+    current="$(ldb_current_version || true)"
+
+    if [[ -z "$versions" ]]; then
+        echo "No ldb_toolchain versions installed under $LDB_VERSIONS_DIR"
+        echo "Install one with: bash ~/code/dotfiles/install/ldb_toolchain.sh [version]"
+        return 0
+    fi
+
+    echo "Installed ldb_toolchain versions (current marked *):"
+    local v marker
+    while IFS= read -r v; do
+        [[ -z "$v" ]] && continue
+        if [[ "$v" == "$current" ]]; then marker="*"; else marker=" "; fi
+        printf '  %s %s\n' "$marker" "$v"
+    done <<< "$versions"
+
+    if [[ -z "$current" ]]; then
+        echo
+        echo "No active version selected. Pick one: use-ldb <version>"
+    fi
+}
+
+case "${1:-}" in
+    ""|--list|-l|list)
+        list_versions
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    *)
+        version="$1"
+        if [[ "$version" == "latest" ]]; then
+            version="$(ldb_installed_versions | tail -n1)"
+            [[ -n "$version" ]] || { echo "No versions installed" >&2; exit 1; }
+        fi
+        if ! ldb_is_installed "$version"; then
+            echo "ldb_toolchain $version is not installed." >&2
+            echo "Installed versions:" >&2
+            ldb_installed_versions | sed 's/^/  /' >&2
+            echo "Install it with: bash ~/code/dotfiles/install/ldb_toolchain.sh $version" >&2
+            exit 1
+        fi
+        ldb_set_current "$version"
+        gcc_bin="$(ldb_version_dir "$version")/bin/gcc"
+        printf '\033[32m[ OK ]\033[0m Now using ldb_toolchain %s\n' "$version"
+        [[ -x "$gcc_bin" ]] && printf '       %s\n' "$("$gcc_bin" --version | head -1)"
+        ;;
+esac

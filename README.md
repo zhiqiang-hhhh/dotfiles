@@ -82,7 +82,8 @@ After bootstrap, you can run installers independently:
 ```bash
 bash ~/code/dotfiles/install/java.sh
 bash ~/code/dotfiles/install/maven.sh
-bash ~/code/dotfiles/install/ldb_toolchain.sh
+bash ~/code/dotfiles/install/ldb_toolchain.sh          # latest release
+bash ~/code/dotfiles/install/ldb_toolchain.sh v0.25    # a specific version
 bash ~/code/dotfiles/install/go.sh
 bash ~/code/dotfiles/install/anaconda.sh
 bash ~/code/dotfiles/install/rclone.sh
@@ -94,6 +95,20 @@ bash ~/code/dotfiles/install/iterm2.sh
 bash ~/code/dotfiles/install/doris-thirdparty.sh
 bash ~/code/dotfiles/install/doris-workspace.sh
 bash ~/code/dotfiles/install/clickhouse-workspace.sh
+```
+
+### ldb_toolchain versions
+
+`install/ldb_toolchain.sh [version]` installs versions side-by-side under
+`~/tools/ldb_toolchain/versions/<version>` and points `~/tools/ldb_toolchain/current`
+at the one just installed; PATH uses `current/bin`. With no argument it installs
+the latest GitHub release.
+
+Switch the active version with `use-ldb`:
+
+```bash
+use-ldb            # list installed versions (current marked *)
+use-ldb v0.25      # switch to v0.25 (takes effect immediately)
 ```
 
 ## Monitoring stack

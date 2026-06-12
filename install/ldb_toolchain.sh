@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 # install/ldb_toolchain.sh - Download and install ldb_toolchain_gen
+#
+# Usage:
+#   bash install/ldb_toolchain.sh [version]
+#
+#   version   release tag to install, e.g. v0.25. If omitted (and LDB_VERSION
+#             is unset) the latest GitHub release is used.
+#
+# Versions install side-by-side under ~/tools/ldb_toolchain/versions/<version>
+# and the freshly installed one becomes "current". Switch later with: use-ldb
 
 if [[ -z "${BASH_VERSION:-}" ]]; then
     exec bash "$0" "$@"
@@ -7,17 +16,39 @@ fi
 
 set -euo pipefail
 
-LDB_VERSION="${LDB_VERSION:-v0.26}"
-TOOLS_DIR="$HOME/tools"
-LDB_INSTALL_DIR="$TOOLS_DIR/ldb_toolchain"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+DOTFILES_DIR="${DOTFILES_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+source "$DOTFILES_DIR/bin/_ldb-common.sh"
 
 info()    { printf "\033[34m[INFO]\033[0m %s\n" "$1"; }
 warn()    { printf "\033[33m[WARN]\033[0m %s\n" "$1"; }
 success() { printf "\033[32m[ OK ]\033[0m %s\n" "$1"; }
 
+# Resolve which version to install: explicit arg > LDB_VERSION env > latest > fallback.
+_ldb_resolve_version() {
+    local requested="${1:-${LDB_VERSION:-}}"
+    if [[ -n "$requested" ]]; then
+        printf '%s\n' "$requested"
+        return 0
+    fi
+
+    info "No version specified; querying the latest release ..." >&2
+    local latest
+    if latest="$(ldb_latest_version)"; then
+        info "Latest release is ${latest}" >&2
+        printf '%s\n' "$latest"
+    else
+        warn "Could not resolve the latest release; falling back to ${LDB_FALLBACK_VERSION}" >&2
+        printf '%s\n' "$LDB_FALLBACK_VERSION"
+    fi
+}
+
 install_ldb_toolchain() {
+    local version
+    version="$(_ldb_resolve_version "${1:-}")"
+
     echo
-    info "=== ldb_toolchain Setup (${LDB_VERSION}) ==="
+    info "=== ldb_toolchain Setup (${version}) ==="
     echo
 
     local os
@@ -28,27 +59,31 @@ install_ldb_toolchain() {
         return 0
     fi
 
-    # Check if already installed (directory exists and has gcc binary)
-    if [[ -x "$LDB_INSTALL_DIR/bin/gcc" ]]; then
-        success "ldb_toolchain already installed at $LDB_INSTALL_DIR"
-        info "gcc version: $("$LDB_INSTALL_DIR/bin/gcc" --version | head -1)"
+    local dest
+    dest="$(ldb_version_dir "$version")"
+
+    # Already installed? Just make sure it's the active version.
+    if ldb_is_installed "$version"; then
+        success "ldb_toolchain ${version} already installed at $dest"
+        info "gcc version: $("$dest/bin/gcc" --version | head -1)"
+        ldb_set_current "$version" && success "Active version is now ${version}"
         return 0
     fi
 
-    # If directory exists but is incomplete, remove it so gen.sh can recreate
-    if [[ -d "$LDB_INSTALL_DIR" ]]; then
-        warn "Directory $LDB_INSTALL_DIR exists but appears incomplete (no bin/gcc)"
-        read -rp "Remove and reinstall? [Y/n] " answer
+    # Incomplete leftover directory for this version: remove so gen.sh can recreate.
+    if [[ -d "$dest" ]]; then
+        warn "Directory $dest exists but appears incomplete (no bin/gcc)"
+        read -rp "Remove and reinstall ${version}? [Y/n] " answer
         answer="${answer:-Y}"
         if [[ "$answer" =~ ^[Yy]$ ]]; then
-            rm -rf "$LDB_INSTALL_DIR"
-            info "Removed $LDB_INSTALL_DIR"
+            rm -rf "$dest"
+            info "Removed $dest"
         else
             warn "Skipping ldb_toolchain installation"
             return 0
         fi
     else
-        read -rp "Install ldb_toolchain ${LDB_VERSION} to $LDB_INSTALL_DIR? [Y/n] " answer
+        read -rp "Install ldb_toolchain ${version} to $dest? [Y/n] " answer
         answer="${answer:-Y}"
         if [[ ! "$answer" =~ ^[Yy]$ ]]; then
             warn "Skipping ldb_toolchain installation"
@@ -64,11 +99,11 @@ install_ldb_toolchain() {
         gen_filename="ldb_toolchain_gen_aarch64.sh"
     fi
 
-    local ldb_url="https://github.com/amosbird/ldb_toolchain_gen/releases/download/${LDB_VERSION}/${gen_filename}"
+    local ldb_url="https://github.com/${LDB_REPO}/releases/download/${version}/${gen_filename}"
     local tmp_file="/tmp/${gen_filename}"
 
     info "Detected architecture: $arch"
-    info "Downloading ${gen_filename} (${LDB_VERSION})..."
+    info "Downloading ${gen_filename} (${version})..."
     info "URL: $ldb_url"
     info "This may take a while (file is ~300 MB)..."
     if command -v curl &>/dev/null; then
@@ -82,10 +117,11 @@ install_ldb_toolchain() {
 
     chmod +x "$tmp_file"
 
-    # NOTE: Do NOT mkdir the target dir — ldb_toolchain_gen.sh expects to create it itself
-    # and will error if it already exists.
-    info "Running ${gen_filename} (installing to $LDB_INSTALL_DIR)..."
-    if bash "$tmp_file" "$LDB_INSTALL_DIR"; then
+    # gen.sh creates the target dir itself and errors if it already exists,
+    # so make only the parent (versions/) and hand it the non-existent dest.
+    mkdir -p "$LDB_VERSIONS_DIR"
+    info "Running ${gen_filename} (installing to $dest)..."
+    if bash "$tmp_file" "$dest"; then
         info "${gen_filename} completed"
     else
         warn "${gen_filename} exited with non-zero status"
@@ -93,12 +129,13 @@ install_ldb_toolchain() {
 
     rm -f "$tmp_file"
 
-    if [[ -x "$LDB_INSTALL_DIR/bin/gcc" ]]; then
-        success "ldb_toolchain installed successfully!"
-        info "gcc: $("$LDB_INSTALL_DIR/bin/gcc" --version | head -1)"
-        info "g++: $("$LDB_INSTALL_DIR/bin/g++" --version | head -1)"
+    if ldb_is_installed "$version"; then
+        success "ldb_toolchain ${version} installed successfully!"
+        info "gcc: $("$dest/bin/gcc" --version | head -1)"
+        info "g++: $("$dest/bin/g++" --version | head -1)"
+        ldb_set_current "$version" && success "Active version is now ${version} (switch with: use-ldb)"
     else
-        warn "ldb_toolchain installation may have failed, check $LDB_INSTALL_DIR"
+        warn "ldb_toolchain installation may have failed, check $dest"
     fi
 
     # Warn about LD_LIBRARY_PATH (per upstream FAQ: it must NOT be set)
@@ -113,10 +150,9 @@ install_ldb_toolchain() {
 
 # Run if executed directly
 if [[ "${BASH_SOURCE[0]:-$0}" == "$0" ]]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
     source "$SCRIPT_DIR/_common.sh"
 
-    install_ldb_toolchain
+    install_ldb_toolchain "$@"
     ensure_bashrc
     hint_source_bashrc
 fi

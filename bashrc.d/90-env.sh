@@ -48,8 +48,10 @@ if [[ -z "${GOPATH:-}" ]]; then
     export GOPATH="$HOME/go"
 fi
 
-# ldb_toolchain
-if [[ -d "$HOME/tools/ldb_toolchain" ]]; then
+# ldb_toolchain (prefer the versioned current/ symlink, else legacy flat layout)
+if [[ -d "$HOME/tools/ldb_toolchain/current" ]]; then
+    export LDB_TOOLCHAIN_HOME="$HOME/tools/ldb_toolchain/current"
+elif [[ -d "$HOME/tools/ldb_toolchain" ]]; then
     export LDB_TOOLCHAIN_HOME="$HOME/tools/ldb_toolchain"
 fi
 

@@ -5,8 +5,9 @@
 [[ -d "$HOME/bin" ]] && export PATH="$HOME/bin:$PATH"
 [[ -d "$HOME/code/dotfiles/bin" ]] && export PATH="$HOME/code/dotfiles/bin:$PATH"
 
-# ldb_toolchain
+# ldb_toolchain (legacy flat layout, then versioned current/ — current wins)
 [[ -d "$HOME/tools/ldb_toolchain/bin" ]] && export PATH="$HOME/tools/ldb_toolchain/bin:$PATH"
+[[ -d "$HOME/tools/ldb_toolchain/current/bin" ]] && export PATH="$HOME/tools/ldb_toolchain/current/bin:$PATH"
 
 # anaconda (conda-standalone)
 [[ -d "$HOME/tools/anaconda/bin" ]] && export PATH="$HOME/tools/anaconda/bin:$PATH"
