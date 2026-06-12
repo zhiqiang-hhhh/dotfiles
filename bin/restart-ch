@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_clickhouse-common.sh"
+
+nodes="$(clickhouse_nodes_from_args "$@")"
+
+for node in $nodes; do
+    clickhouse_stop_node "$node"
+done
+for node in $nodes; do
+    clickhouse_start_node "$node"
+done

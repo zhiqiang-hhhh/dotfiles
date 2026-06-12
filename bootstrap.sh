@@ -11,11 +11,12 @@
 #   3. Generates SSH key and guides you to add it to GitHub
 #   4. Clones this dotfiles repo to ~/code/dotfiles
 #   5. Configures git (name, email)
-#   6. Sets up bash (source-based, non-destructive)
+#   6. Sets up shell PATH and Bash helpers (non-destructive)
 #   7. Installs development tools (JDK 17, Maven, ldb_toolchain, Go, ripgrep)
 #   8. Clones your repos from repos.conf
 #   9. Installs Doris thirdparty prebuilt dependencies
 #  10. Prepares Doris workspace runtime layout
+#  11. Lists optional ClickHouse workspace setup command
 #
 
 if [[ -z "${BASH_VERSION:-}" ]]; then
@@ -279,20 +280,50 @@ setup_git_config() {
 }
 
 # ============================================================
-# Step 6: Configure bash
+# Step 6: Configure shell
 # ============================================================
 
+setup_zsh_path() {
+    local zshrc="$HOME/.zshrc"
+    local marker="# >>> dotfiles path >>>"
+
+    if [[ -f "$zshrc" ]] && grep -qF "$marker" "$zshrc"; then
+        success "Dotfiles bin PATH already configured in $zshrc"
+        return 0
+    fi
+
+    if [[ -f "$zshrc" ]]; then
+        local backup="${zshrc}.bak.$(date +%Y%m%d%H%M%S)"
+        cp "$zshrc" "$backup"
+        info "Backed up existing .zshrc to $backup"
+    fi
+
+    cat >> "$zshrc" << 'ZSHRC_BLOCK'
+
+# >>> dotfiles path >>>
+# Managed by https://github.com/zhiqiang-hhhh/dotfiles
+# Do not edit this block manually.
+export DOTFILES_DIR="$HOME/code/dotfiles"
+[[ -d "$HOME/bin" ]] && export PATH="$HOME/bin:$PATH"
+[[ -d "$DOTFILES_DIR/bin" ]] && export PATH="$DOTFILES_DIR/bin:$PATH"
+typeset -U path PATH
+# <<< dotfiles path <<<
+ZSHRC_BLOCK
+
+    success "Added dotfiles bin PATH block to $zshrc"
+}
+
 setup_bash() {
-    header "Step 6: Bash Configuration"
+    header "Step 6: Shell Configuration"
 
     local bashrc="$HOME/.bashrc"
     local marker="# >>> dotfiles >>>"
-    local marker_end="# <<< dotfiles <<<"
 
     # Check if already configured
     if [[ -f "$bashrc" ]] && grep -qF "$marker" "$bashrc"; then
         success "Dotfiles already sourced in $bashrc"
         info "To re-apply, remove the dotfiles block from $bashrc and re-run"
+        setup_zsh_path
         return 0
     fi
 
@@ -321,6 +352,7 @@ BASHRC_BLOCK
 
     success "Added dotfiles source block to $bashrc"
     info "Your original .bashrc content is preserved above the block"
+    setup_zsh_path
 }
 
 # ============================================================
@@ -548,7 +580,7 @@ print_summary() {
     echo
     echo "Dotfiles location: $DOTFILES_DIR"
     echo
-    echo "Quick commands (after sourcing bashrc):"
+    echo "Quick commands (after reloading shell config):"
     echo "  c <dir>     - cd to ~/code/<dir>      (Tab completion)"
     echo "  w <dir>     - cd to ~/workspace/<dir>  (Tab completion)"
     echo "  t <dir>     - cd to ~/tools/<dir>      (Tab completion)"
@@ -558,7 +590,8 @@ print_summary() {
     echo
     echo "To apply changes now, run:"
     echo
-    echo "  source ~/.bashrc"
+    echo "  source ~/.bashrc   # bash"
+    echo "  source ~/.zshrc    # zsh PATH"
     echo
     echo "To add more repos later, edit:"
     echo "  $DOTFILES_DIR/repos.conf"
@@ -577,6 +610,7 @@ print_summary() {
     echo "  bash $DOTFILES_DIR/install/monitoring.sh"
     echo "  bash $DOTFILES_DIR/install/doris-thirdparty.sh"
     echo "  bash $DOTFILES_DIR/install/doris-workspace.sh"
+    echo "  bash $DOTFILES_DIR/install/clickhouse-workspace.sh"
     echo
 }
 

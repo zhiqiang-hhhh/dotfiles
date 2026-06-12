@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cat <<'EOF'
+ClickHouse/ZooKeeper shortcuts (managed by dotfiles)
+
+Naming
+  <action>-<component>
+  component: ch, zk
+
+Workspace
+  deploy-ch
+      prepare ~/workspace/clickhouse and link bin/clickhouse to a built binary
+
+ZooKeeper
+  start-zk
+  stop-zk
+  restart-zk
+  status-zk
+
+ClickHouse runtime
+  start-ch [all|node1|node2|single]
+      default is all when node configs exist; single uses conf/config.xml
+  stop-ch [--force] [all|node1|node2|single]
+  restart-ch [all|node1|node2|single]
+  status-ch [all|node1|node2|single]
+
+SQL helper
+  client-ch [node1|node2|single] [clickhouse-client args...]
+      connect through the workspace ClickHouse binary
+
+Environment overrides
+  CLICKHOUSE_WORKSPACE=/path/to/workspace
+  CLICKHOUSE_BINARY=/path/to/clickhouse
+  CLICKHOUSE_BUILD_DIR=/path/to/ClickHouse/build
+  ZOOKEEPER_HOME=/path/to/apache-zookeeper-*-bin
+EOF

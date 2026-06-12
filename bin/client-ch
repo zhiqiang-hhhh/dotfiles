@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_clickhouse-common.sh"
+
+node="${1:-node1}"
+case "$node" in
+    single|default|node1|node2)
+        shift || true
+        ;;
+    *)
+        node="node1"
+        ;;
+esac
+
+conf_file="$(clickhouse_config_path "$node")"
+tcp_port="$(clickhouse_config_get "$conf_file" tcp_port "9000")"
+binary="$(clickhouse_binary)"
+
+if [[ ! -x "$binary" ]]; then
+    echo "missing executable ClickHouse binary: $binary" >&2
+    exit 1
+fi
+
+"$binary" client --host 127.0.0.1 --port "$tcp_port" "$@"

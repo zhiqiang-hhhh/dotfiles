@@ -24,6 +24,44 @@ fi
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/code/dotfiles}"
 
 # ============================================================
+# ensure_zsh_path - Make sure ~/.zshrc adds dotfiles bin to PATH
+#
+# zsh gets a minimal PATH-only block. Do not source bashrc.d/*
+# from zsh because those files are Bash-oriented.
+# ============================================================
+
+ensure_zsh_path() {
+    local zshrc="$HOME/.zshrc"
+    local marker="# >>> dotfiles path >>>"
+
+    if [[ -f "$zshrc" ]] && grep -qF "$marker" "$zshrc"; then
+        return 0
+    fi
+
+    info "Adding dotfiles PATH block to $zshrc ..."
+
+    if [[ -f "$zshrc" ]]; then
+        local backup="${zshrc}.bak.$(date +%Y%m%d%H%M%S)"
+        cp "$zshrc" "$backup"
+        info "Backed up existing .zshrc to $backup"
+    fi
+
+    cat >> "$zshrc" << 'ZSHRC_BLOCK'
+
+# >>> dotfiles path >>>
+# Managed by https://github.com/zhiqiang-hhhh/dotfiles
+# Do not edit this block manually.
+export DOTFILES_DIR="$HOME/code/dotfiles"
+[[ -d "$HOME/bin" ]] && export PATH="$HOME/bin:$PATH"
+[[ -d "$DOTFILES_DIR/bin" ]] && export PATH="$DOTFILES_DIR/bin:$PATH"
+typeset -U path PATH
+# <<< dotfiles path <<<
+ZSHRC_BLOCK
+
+    success "Dotfiles PATH block added to $zshrc"
+}
+
+# ============================================================
 # ensure_bashrc - Make sure ~/.bashrc sources bashrc.d/*
 #
 # Checks if the dotfiles source block exists in ~/.bashrc.
@@ -38,6 +76,7 @@ ensure_bashrc() {
 
     # Already configured — nothing to do
     if [[ -f "$bashrc" ]] && grep -qF "$marker" "$bashrc"; then
+        ensure_zsh_path
         return 0
     fi
 
@@ -67,6 +106,7 @@ fi
 BASHRC_BLOCK
 
     success "Dotfiles source block added to $bashrc"
+    ensure_zsh_path
 }
 
 # ============================================================
@@ -76,12 +116,12 @@ BASHRC_BLOCK
 hint_source_bashrc() {
     echo
     if [[ -n "${ZSH_VERSION:-}" || "${SHELL:-}" == */zsh ]]; then
-        info "Detected zsh. Dotfiles shell setup is managed in ~/.bashrc."
-        info "Open a bash shell to use it now:"
+        info "Detected zsh. Dotfiles bin PATH is managed in ~/.zshrc."
+        info "To activate PATH changes in your current shell, run:"
         echo
-        echo "  bash"
+        echo "  source ~/.zshrc"
         echo
-        info "Or manually port the source block from ~/.bashrc to ~/.zshrc if you use zsh as your main shell."
+        info "Bash-only helper functions are still managed in ~/.bashrc."
         echo
         return 0
     fi

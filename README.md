@@ -48,7 +48,7 @@ This script will guide you through:
 - using git when available, otherwise downloading the dotfiles archive directly
 - setting up SSH key and git config
 - cloning this repo to `~/code/dotfiles`
-- configuring `~/.bashrc` to source `bashrc.d/*.sh`
+- configuring shell PATH (`~/.zshrc` for zsh, `~/.bashrc` for bash helpers)
 - optional tool installation (JDK, Maven, ldb_toolchain, Go, anaconda/conda, rclone, GitHub CLI, ripgrep)
 - optional monitoring stack installation (Prometheus, Grafana, Node Exporter)
 - cloning repos from `repos.conf`
@@ -82,6 +82,7 @@ bash ~/code/dotfiles/install/kitty.sh
 bash ~/code/dotfiles/install/iterm2.sh
 bash ~/code/dotfiles/install/doris-thirdparty.sh
 bash ~/code/dotfiles/install/doris-workspace.sh
+bash ~/code/dotfiles/install/clickhouse-workspace.sh
 ```
 
 ## Monitoring stack
@@ -180,3 +181,60 @@ After reloading shell, these helpers are available:
   - `mysql -h 127.0.0.1 -P <query_port_from_fe.conf> -uroot`
   - `addbe [host] [heartbeat_port]` - run `ALTER SYSTEM ADD BACKEND` via FE query port
     - defaults: `host=127.0.0.1`, `heartbeat_port` from `be.conf`
+
+## ClickHouse workspace runtime layout
+
+The ClickHouse helper scripts expect local runtime files under:
+
+- `~/workspace/clickhouse`
+- `~/workspace/zookeeper/apache-zookeeper-*-bin`
+
+The deployment script prepares missing runtime directories and links:
+
+- `~/workspace/clickhouse/bin/clickhouse` -> `~/code/ClickHouse/build/programs/clickhouse`
+
+It does not overwrite existing ClickHouse configs or data. Existing configs are
+expected under:
+
+- `~/workspace/clickhouse/conf/config.xml` - single-node config
+- `~/workspace/clickhouse/conf/node1.xml` - local cluster node 1
+- `~/workspace/clickhouse/conf/node2.xml` - local cluster node 2
+- `~/workspace/clickhouse/conf/users.xml`
+
+Run or refresh the workspace:
+
+```bash
+bash ~/code/dotfiles/install/clickhouse-workspace.sh
+```
+
+Useful environment overrides:
+
+- `CLICKHOUSE_WORKSPACE=/path/to/workspace`
+- `CLICKHOUSE_BINARY=/path/to/clickhouse`
+- `CLICKHOUSE_BUILD_DIR=/path/to/ClickHouse/build`
+- `ZOOKEEPER_HOME=/path/to/apache-zookeeper-*-bin`
+
+## ClickHouse and ZooKeeper shortcuts
+
+After reloading shell, these helpers are available:
+
+- Shell functions in `bashrc.d/50-clickhouse.sh`:
+  - `cch` - `cd ~/workspace/clickhouse`
+  - `czk` - `cd ~/workspace/zookeeper`
+  - `deploy_ch` - wrapper for `bin/deploy-ch`
+  - `start_ch` / `stop_ch` / `restart_ch` / `status_ch`
+  - `start_zk` / `stop_zk` / `restart_zk` / `status_zk`
+  - `client_ch` - connect with `clickhouse client`
+  - `help_ch` - show ClickHouse shortcut usage
+- Executables in `bin/`:
+  - `deploy-ch` - prepare workspace and binary symlink
+  - `start-ch [all|node1|node2|single]`
+  - `stop-ch [--force] [all|node1|node2|single]`
+  - `restart-ch [all|node1|node2|single]`
+  - `status-ch [all|node1|node2|single]`
+  - `client-ch [node1|node2|single] [clickhouse-client args...]`
+  - `help-ch`
+  - `start-zk`, `stop-zk`, `restart-zk`, `status-zk`
+
+When `node1.xml` or `node2.xml` exists, `start-ch` defaults to `all`.
+Use `start-ch single` to start `conf/config.xml`.
